@@ -16,4 +16,8 @@ else
     " > ~/.muttrc
 fi 
 
-echo "In attachment you can find report for GTD" | mutt -s "GTD report" stefan@lugons.org -a report.html
+echo "In attachment you can find report for GTD
+
+This email is sent from $(curl https://jsonip.com | jq ".ip")
+
+" | mutt -s "GTD report" stefan@lugons.org -a report.html
