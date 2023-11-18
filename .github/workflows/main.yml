@@ -1,0 +1,23 @@
+on: 
+  push:
+    branches:
+      - master
+jobs:
+  example-job:
+    runs-on: ubuntu-latest
+    container: archlinux
+    steps:
+    - name: Checkout repository 
+      uses: actions/checkout@v4
+    - name: Install dependencies 
+      run: pacman -Syy && ./ci/install.sh 
+    - name: Generate reports
+      run: ./ci/build.sh
+    - name: Send email 
+      run: ./ci/send.sh 
+      env:
+        my_realname: ${{ secrets.realname }}
+        my_email: ${{ secrets.email }}
+        my_smtp: ${{ secrets.smtp }}
+        my_user: ${{ secrets.username }}
+        my_pass: ${{ secrets.password }}
