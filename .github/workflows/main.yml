@@ -21,3 +21,7 @@ jobs:
         my_smtp: ${{ secrets.smtp }}
         my_user: ${{ secrets.username }}
         my_pass: ${{ secrets.password }}
+        my_jira_url: ${{ secrets.jira_url }}
+        my_jira_username: ${{ secrets.jira_username }}
+        my_jira_password: ${{ secrets.jira_password }}
+
