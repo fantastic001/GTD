@@ -78,7 +78,7 @@ class CommandExecutor:
         else:
             return result
         
-    def retro(self):
+    def retro(self, * ,use_html: bool = False):
         tasks: list[Issue] = self.search("filter = 'weekly retro'")
         epics = [task.raw.get("fields", {}).get("parent", {}).get("fields", {}).get("summary", "") for task in tasks]
         epics = set(epics)
@@ -98,15 +98,26 @@ class CommandExecutor:
         for epic in epics:
             if epic == "":
                 epic = NON_PROJECT_EPIC_SUMMARY
-            result.append("* %s" % epic)
+            if use_html:
+                result.append(section(epic, level=1))
+            else:
+                result.append("* %s" % epic)
+                result.append("")
+            if use_html:
+                result.append(tickets(epic_to_tasks[epic], extended=True))
+            else:
+                for task in epic_to_tasks[epic]:
+                    result.append("+ %s " % task.fields.summary)
+                result.append("")
+        if use_html:
+            result.append(section("Statistics", level=1))
+            result.append(paragraph("Number of Finished tasks: %d" % len(tasks)))
+            result.append(paragraph("Number of Finished tasks without project: %d" % len(epic_to_tasks[NON_PROJECT_EPIC_SUMMARY])))
+        else:
+            result.append("* Statistics")
             result.append("")
-            for task in epic_to_tasks[epic]:
-                result.append("+ %s " % task.fields.summary)
-            result.append("")
-        result.append("* Statistics")
-        result.append("")
-        result.append("+ Number of Finished tasks: %d" % len(tasks))
-        result.append("+ Number of Finished tasks without project: %d" % len(epic_to_tasks[NON_PROJECT_EPIC_SUMMARY]))        
+            result.append("+ Number of Finished tasks: %d" % len(tasks))
+            result.append("+ Number of Finished tasks without project: %d" % len(epic_to_tasks[NON_PROJECT_EPIC_SUMMARY]))        
         return result
 
     def report(self):
@@ -129,10 +140,13 @@ class CommandExecutor:
         result.append(tickets(tickets_this_week))
         result.append(section("Delegated tasks"))
         result.append(tickets(self.search("filter = 'Delegated'"), extended=True))
-        result.append(section("Non-urgent task focus of the day"))
-        result.append(tickets(self.search("filter = 'Backlog' and duedate is empty")[:1]))
+        result.append(section("Non-urgent tasks focus of the day"))
+        if len(tickets_overdue) == 0 and len(tickets_this_week) < 21:
+            result.append(tickets(self.search("filter = 'Backlog' and duedate is empty")[:10]))
+        else:
+            result.append(tickets(self.search("filter = 'Backlog' and duedate is empty")[:1]))
         result.append(section("Weekly retro"))
-        result.append(tickets(self.search("filter = 'Weekly retro'"), extended=True))
+        result += self.retro(use_html=True)
         result.append(section("Badly specified tickets"))
         if len(bad_tickets) > 0:
             result.append(tickets(bad_tickets))
