@@ -32,11 +32,11 @@ def colored(c, text):
 
 
 def blue(text):
-    return colored("green", text)
+    return colored("aqua", text)
 
 
 def green(text):
-    return colored("green", text)
+    return colored("lime", text)
 
 def yellow(text):
     return colored("yellow", text)
