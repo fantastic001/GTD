@@ -81,10 +81,11 @@ class CommandExecutor:
     def retro(self, * ,use_html: bool = False):
         tasks: list[Issue] = self.search("filter = 'weekly retro'")
         epics = [task.raw.get("fields", {}).get("parent", {}).get("fields", {}).get("summary", "") for task in tasks]
+        NON_PROJECT_EPIC_SUMMARY = "Non-project related tasks"
+        epics.append(NON_PROJECT_EPIC_SUMMARY)
         epics = set(epics)
         contexts = [task.raw["fields"]["customfield_10036"]["value"] for task in tasks]
         result = [] 
-        NON_PROJECT_EPIC_SUMMARY = "Non-project related tasks"
         epic_to_tasks = {}
         for epic in epics:
             if epic == "":
