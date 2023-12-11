@@ -96,18 +96,20 @@ class CommandExecutor:
             if epic_summary == "":
                 epic_summary = NON_PROJECT_EPIC_SUMMARY
             epic_to_tasks[epic_summary].append(task)
-        for epic in epics:
+        for epic, tasks_in_epic in epic_to_tasks.items():
             if epic == "":
                 epic = NON_PROJECT_EPIC_SUMMARY
+            if len(tasks_in_epic) == 0:
+                continue
             if use_html:
                 result.append(section(epic, level=1))
             else:
                 result.append("* %s" % epic)
                 result.append("")
             if use_html:
-                result.append(tickets(epic_to_tasks[epic], extended=True))
+                result.append(tickets(tasks_in_epic, extended=True))
             else:
-                for task in epic_to_tasks[epic]:
+                for task in tasks_in_epic:
                     result.append("+ %s " % task.fields.summary)
                 result.append("")
         if use_html:
@@ -164,3 +166,13 @@ class CommandExecutor:
 
         return result 
         
+    def get_critical_days(self, *, days: int = 32):
+        tickets = self.search("issuetype = Task AND statuscategory != Done AND duedate < %ddays" % days)
+        result = {}
+        d = {} 
+        for t in tickets:
+            d[t.fields.duedate] = d.get(t.fields.duedate, []) + [t]
+        for day, tasks in d.items():
+            if len(tasks) > 4:
+                result[day] = [x.fields.summary for x in tasks] 
+        return result
