@@ -52,6 +52,8 @@ def items(l: list[Any]):
     return "<ul>\n%s</ul>" % "\n".join("<li>%s</li>" % str(t) for t in l)
 
 def tickets(l, extended=False):
+    if all([x.fields.duedate is not None for x in l]):
+        l = sorted(l, key= lambda x: datetime.datetime.strptime(x.fields.duedate, "%Y-%m-%d"))
     return items([ticket(t, extended=extended) for t in l])
 
 def section(text, level=0):
@@ -145,7 +147,7 @@ class CommandExecutor:
         result.append(section("Due this week"))
         for context, tasks in context_tasks.items():
             result.append(section(context, 1))
-            result.append(tickets(tasks))
+            result.append(tickets(tasks, extended=True))
         result.append(section("Delegated tasks"))
         result.append(tickets(self.search("filter = 'Delegated'"), extended=True))
         result.append(section("Non-urgent tasks focus of the day"))
