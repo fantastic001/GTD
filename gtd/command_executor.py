@@ -84,7 +84,6 @@ class CommandExecutor:
         NON_PROJECT_EPIC_SUMMARY = "Non-project related tasks"
         epics.append(NON_PROJECT_EPIC_SUMMARY)
         epics = set(epics)
-        contexts = [task.raw["fields"]["customfield_10036"]["value"] for task in tasks]
         result = [] 
         epic_to_tasks = {}
         for epic in epics:
@@ -128,6 +127,10 @@ class CommandExecutor:
         bad_epics = self.search("filter = 'Badly specified epics'")
         tickets_overdue = self.search("filter = 'Tasks this week' and duedate < endOFDay()")
         tickets_this_week = self.search("filter = 'Tasks this week'")
+        contexts = [task.raw["fields"]["customfield_10036"]["value"] for task in tickets_this_week]
+        context_tasks = {
+            c: [t for t in tickets_this_week if t.raw["fields"]["customfield_10036"]["value"] == c] for c in contexts
+        }
         result = [] 
         rating = ""
         if len(bad_tickets) > 0 or len(bad_epics) > 0 or len(tickets_overdue) > 1:
@@ -140,7 +143,9 @@ class CommandExecutor:
             rating = blue("Excellent")
         result.append(paragraph("Overall rating: %s" % rating))
         result.append(section("Due this week"))
-        result.append(tickets(tickets_this_week))
+        for context, tasks in context_tasks.items():
+            result.append(section(context, 1))
+            result.append(tickets(tasks))
         result.append(section("Delegated tasks"))
         result.append(tickets(self.search("filter = 'Delegated'"), extended=True))
         result.append(section("Non-urgent tasks focus of the day"))
