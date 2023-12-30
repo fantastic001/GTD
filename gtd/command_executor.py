@@ -161,13 +161,15 @@ class CommandExecutor:
         
         # average resolution rate in past week 
         resolved = self.search("resolved > -7days")
-        rate = len(resolved) / 7
+        resolved = len(resolved)
+        rate = resolved / 7
+
         if rate >= 4 and rate < 6:
-            rate = green("%.2f" % rate)
+            rate = green("%.2f - keep doing 4 tasks per day!" % rate)
         elif rate < 4:
-            rate = yellow("%.2f" % rate)
+            rate = yellow("%.2f - do %d tasks today to get to rate of 4" % (rate, 32-resolved))
         else:
-            rate = blue("%.2f" % rate)
+            rate = blue("%.2f - rest for %d days" % (rate, (resolved - 28) // 4))
         result.append(paragraph("Resolution rate: " + rate))
 
         # Due this week 
