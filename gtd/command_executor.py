@@ -2,10 +2,12 @@ from dataclasses import asdict, field, fields
 import datetime
 from typing import Any
 from urllib.parse import non_hierarchical
-
+import pandas as pd 
 import jira
 import json 
 import os
+import requests 
+
 
 from jira.resources import Issue 
 
@@ -62,9 +64,21 @@ def section(text, level=0):
 def paragraph(text):
     return "<p>%s</p>" % text 
 
+def table(table_records):
+    return pd.DataFrame(table_records).to_html(index=False)
 class CommandExecutor:
-    def search(self, jql: str): 
-        return ctrl.search_issues(jql, maxResults=None) 
+    def search(self, jql: str, expand: bool = False): 
+        return ctrl.search_issues(jql, maxResults=None, expand=expand) 
+    
+    def graphql_call(self, query, **vars):
+        response = requests.post(
+            url=config["url"]+"/rest/graphql/1/", 
+            auth=(config["username"], config["password"]), 
+            json={
+                'query': query,
+                "variables": vars
+            })
+        return response
     
     def get_free_slots(self, *, flatten: bool = False, only_once: bool = False):
         tickets: list[jira.Issue] = self.search("issuetype = Task AND statuscategory != Done AND duedate < 60days AND duedate is not empty")
@@ -125,15 +139,12 @@ class CommandExecutor:
         return result
 
     def report(self):
+        result = [] 
+        # Rating 
         bad_tickets = self.search("filter = 'Badly specified tasks'")
         bad_epics = self.search("filter = 'Badly specified epics'")
         tickets_overdue = self.search("filter = 'Tasks this week' and duedate < endOFDay()")
         tickets_this_week = self.search("filter = 'Tasks this week'")
-        contexts = [task.raw["fields"]["customfield_10036"]["value"] for task in tickets_this_week]
-        context_tasks = {
-            c: [t for t in tickets_this_week if t.raw["fields"]["customfield_10036"]["value"] == c] for c in contexts
-        }
-        result = [] 
         rating = ""
         if len(bad_tickets) > 0 or len(bad_epics) > 0 or len(tickets_overdue) > 1:
             rating = red("Bad")
@@ -144,6 +155,12 @@ class CommandExecutor:
         else:
             rating = blue("Excellent")
         result.append(paragraph("Overall rating: %s" % rating))
+        
+        # Due this week 
+        contexts = [task.raw["fields"]["customfield_10036"]["value"] for task in tickets_this_week]
+        context_tasks = {
+            c: [t for t in tickets_this_week if t.raw["fields"]["customfield_10036"]["value"] == c] for c in contexts
+        }
         result.append(section("Due this week"))
         for context, tasks in context_tasks.items():
             result.append(section(context, 1))
@@ -155,8 +172,13 @@ class CommandExecutor:
             result.append(tickets(self.search("filter = 'Backlog' and duedate is empty")[:10]))
         else:
             result.append(tickets(self.search("filter = 'Backlog' and duedate is empty")[:1]))
+
+        # Weekly retro
         result.append(section("Weekly retro"))
         result += self.retro(use_html=True)
+        
+        
+        # Badly specificed 
         result.append(section("Badly specified tickets"))
         if len(bad_tickets) > 0:
             result.append(tickets(bad_tickets))
@@ -167,12 +189,65 @@ class CommandExecutor:
             result.append(tickets(bad_epics))
         else:
             result.append(paragraph("There are no badly specified epics"))
+        
+        # Report of available days
         result.append(section("Report of available days"))
         result.append(paragraph("The following days are available to be used as due dates:"))
         result.append(items(self.get_free_slots(flatten=True, only_once=True)))
-
-        return result 
         
+        # Critical days 
+        critical_days = self.get_critical_days()
+        if len(critical_days.keys()) > 0:
+            result.append(section("Days with many tasks due"))
+            for day, tasks in critical_days:
+                result.append(section(day, level=1))
+                result.append(items(tasks))
+
+        # Context distribution 
+        result.append(section("Context distribution"))
+        result.append(table(self.get_context_distribution()))
+        return result 
+    
+    def get_context_distribution(self):
+        tasks = self.search("filter = 'Tasks this month'")
+        fields = self.graphql_call("""
+            query fieldConfigurationQuery($issueKey: String) { 
+                issue(issueIdOrKey: $issueKey, latestVersion: true, screen: \"view\") {
+                          fields {
+                                key
+                                schema {
+                                    type
+                                    custom
+                                    customId
+                                    system
+                                    renderer
+                                }
+                                autoCompleteUrl
+                                allowedValues\n        
+                                operations        
+                                required
+                                editable
+                                title
+                            }    
+                        }
+            }
+        """,
+        issueKey=tasks[0].key
+        ).json()["data"]["issue"]["fields"]
+        context_field = [f for f in fields if f["title"] == "Context"][0]
+
+        contexts = [c["value"] for c in context_field["allowedValues"]]
+        context_tasks = {
+            c: [t for t in tasks if t.raw["fields"]["customfield_10036"]["value"] == c] for c in contexts
+        }
+        return [
+            {
+                "Context": c,
+                "Number of tickets": len(t),
+                "%": "%.2f%%" % (100*len(t) / len(tasks))
+            } for c,t in context_tasks.items()
+        ]
+
     def get_critical_days(self, *, days: int = 32):
         tickets = self.search("issuetype = Task AND statuscategory != Done AND duedate < %ddays" % days)
         result = {}
