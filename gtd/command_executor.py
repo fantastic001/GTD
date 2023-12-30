@@ -159,6 +159,17 @@ class CommandExecutor:
             rating = blue("Excellent")
         result.append(paragraph("Overall rating: %s" % rating))
         
+        # average resolution rate in past week 
+        resolved = self.search("resolved > -7days")
+        rate = len(resolved) / 7
+        if rate >= 4 and rate < 6:
+            rate = green("%.2f" % rate)
+        elif rate < 4:
+            rate = yellow("%.2f" % rate)
+        else:
+            rate = blue("%.2f" % rate)
+        result.append(paragraph("Resolution rate: " + rate))
+
         # Due this week 
         contexts = [task.raw["fields"]["customfield_10036"]["value"] for task in tickets_this_week]
         context_tasks = {
