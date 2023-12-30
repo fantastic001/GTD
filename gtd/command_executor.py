@@ -264,7 +264,18 @@ class CommandExecutor:
     
     def show_context_share(self, c, percentage):
         rules = {
-
+            "Work": {
+                "max": 40,
+                "min": 10
+            },
+            "Petnica": {
+                "max": 20,
+                "min": 0
+            },
+            "University": {
+                "min": 20,
+                "max": 100
+            }
         }
         limits = rules.get(c, {
             "max": 100,
@@ -273,4 +284,7 @@ class CommandExecutor:
         if limits["min"] <= percentage and percentage <= limits["max"]:
             return green("%.2f%%" % percentage, block=True) 
         else:
-            return yellow("%.2f" % percentage, block=True)
+            if percentage > limits["max"]:
+                return yellow("%.2f" % percentage, block=True)
+            else:
+                return blue("%.2f" % percentage, block=True)
