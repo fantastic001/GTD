@@ -29,23 +29,26 @@ def ticket(ticket: Issue, extended = False) -> str:
         ) if extended and len(ticket.fields.comment.comments) > 0 else ""
     )
 
-def colored(c, text):
-    return "<span style=\"background-color: %s\">%s</span>" % (c, text)
+def colored(c, text, block=False):
+    if not block:
+        return "<span style=\"background-color: %s\">%s</span>" % (c, text)
+    else:
+        return "<div style=\"background-color: %s\">%s</div>" % (c, text)
 
 
-def blue(text):
-    return colored("aqua", text)
+def blue(text, block=False):
+    return colored("aqua", text, block)
 
 
-def green(text):
-    return colored("lime", text)
+def green(text, block=False):
+    return colored("lime", text, block)
 
-def yellow(text):
-    return colored("yellow", text)
+def yellow(text, block=False):
+    return colored("yellow", text, block)
 
 
-def red(text):
-    return colored("red", text)
+def red(text, block=False):
+    return colored("red", text, block)
 
 def img(src):
     return "<img src='%s' />" % src 
@@ -65,7 +68,7 @@ def paragraph(text):
     return "<p>%s</p>" % text 
 
 def table(table_records):
-    return pd.DataFrame(table_records).to_html(index=False)
+    return pd.DataFrame(table_records).to_html(index=False, escape=False)
 class CommandExecutor:
     def search(self, jql: str, expand: bool = False): 
         return ctrl.search_issues(jql, maxResults=None, expand=expand) 
@@ -244,7 +247,7 @@ class CommandExecutor:
             {
                 "Context": c,
                 "Number of tickets": len(t),
-                "%": "%.2f%%" % (100*len(t) / len(tasks))
+                "%": self.show_context_share(c, (100*len(t) / len(tasks)))
             } for c,t in context_tasks.items()
         ]
 
@@ -258,3 +261,16 @@ class CommandExecutor:
             if len(tasks) > 4:
                 result[day] = [x.fields.summary for x in tasks] 
         return result
+    
+    def show_context_share(self, c, percentage):
+        rules = {
+
+        }
+        limits = rules.get(c, {
+            "max": 100,
+            "min": 0
+        })
+        if limits["min"] <= percentage and percentage <= limits["max"]:
+            return green("%.2f%%" % percentage, block=True) 
+        else:
+            return yellow("%.2f" % percentage, block=True)
