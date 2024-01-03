@@ -215,7 +215,7 @@ class CommandExecutor:
         critical_days = self.get_critical_days()
         if len(critical_days.keys()) > 0:
             result.append(section("Days with many tasks due"))
-            for day, tasks in critical_days:
+            for day, tasks in critical_days.items():
                 result.append(section(day, level=1))
                 result.append(items(tasks))
 
