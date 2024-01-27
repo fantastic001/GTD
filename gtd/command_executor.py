@@ -9,6 +9,7 @@ import os
 import requests 
 
 
+
 from jira.resources import Issue 
 
 config = json.loads(open(os.environ.get("GTD_CONFIG", os.path.join(os.environ["HOME"],".config", "gtd.json"))).read())
@@ -209,7 +210,7 @@ class CommandExecutor:
         # Report of available days
         result.append(section("Report of available days"))
         result.append(paragraph("The following days are available to be used as due dates:"))
-        result.append(items(self.get_free_slots(flatten=True, only_once=True)))
+        result.append(items(self.get_free_slots(flatten=False, only_once=False)))
         
         # Critical days 
         critical_days = self.get_critical_days()
@@ -227,6 +228,22 @@ class CommandExecutor:
         result.append(paragraph(yellow("Context is hot. Decrease number of tickets.")))
         result.append(paragraph(blue("Context is cold. Increase number of tickets.")))
 
+        result.append(section("Other reports"))
+        for report_script in config.get("scripts", []):
+            result.append(section(report_script["name"]))
+            result.append(paragraph(report_script.get("description", "")))
+            result.append(paragraph("Result:"))
+            escapes = {
+                "\n": "<br>",
+                "\t": "&nbsp;"*4,
+                " ": "&nbsp;"
+            }
+
+            html_output = os.popen(report_script["script"]).read()
+            if report_script.get("escape", True):
+                for k,v in escapes.items():
+                    html_output = html_output.replace(k, v)
+            result.append(paragraph(html_output))
         return result 
     
     def get_context_distribution(self):
