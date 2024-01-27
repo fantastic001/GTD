@@ -246,8 +246,7 @@ class CommandExecutor:
             result.append(paragraph(html_output))
         return result 
     
-    def get_context_distribution(self):
-        tasks = self.search("filter = 'Tasks this month'")
+    def get_context_field(self, sample_task_key: str):
         fields = self.graphql_call("""
             query fieldConfigurationQuery($issueKey: String) { 
                 issue(issueIdOrKey: $issueKey, latestVersion: true, screen: \"view\") {
@@ -270,10 +269,14 @@ class CommandExecutor:
                         }
             }
         """,
-        issueKey=tasks[0].key
+        issueKey=sample_task_key
         ).json()["data"]["issue"]["fields"]
         context_field = [f for f in fields if f["title"] == "Context"][0]
+        return context_field
 
+    def get_context_distribution(self):
+        tasks = self.search("filter = 'Tasks this month'")
+        context_field = self.get_context_field(tasks[0].key)
         contexts = [c["value"] for c in context_field["allowedValues"]]
         context_tasks = {
             c: [t for t in tasks if t.raw["fields"]["customfield_10036"]["value"] == c] for c in contexts
@@ -323,3 +326,18 @@ class CommandExecutor:
                 return yellow("%.2f" % percentage, block=True)
             else:
                 return blue("%.2f" % percentage, block=True)
+    
+    def create_ticket(self, summary, context, duedate, *, parent: str = None, description = ""):
+        sample_task = self.search("filter = 'Tasks this month'")[0]
+        params = {
+            "project": "GTD",
+            "summary": summary,
+            "description": description,
+            "issuetype": {"name": "Task"},
+            self.get_context_field(sample_task_key=sample_task.key)["key"]: {"value": context},
+            "duedate": duedate
+        }
+        if parent is not None:
+            params["parent"] = {"key": parent}
+        ticket = ctrl.create_issue(fields=params)
+        return ticket
