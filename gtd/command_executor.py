@@ -341,3 +341,22 @@ class CommandExecutor:
             params["parent"] = {"key": parent}
         ticket = ctrl.create_issue(fields=params)
         return ticket
+    
+    def import_csv(self, path: str):
+        """
+        Imports a csv file with the following columns:
+        - Summary
+        - Context
+        - Due date
+        - Parent
+        - Description
+        """
+        df = pd.read_csv(path)
+        for i, row in df.iterrows():
+            self.create_ticket(
+                summary=row["Summary"],
+                context=row["Context"],
+                duedate=row["Due date"],
+                parent=row["Parent"],
+                description=row["Description"]
+            )
