@@ -244,6 +244,10 @@ class CommandExecutor:
                 for k,v in escapes.items():
                     html_output = html_output.replace(k, v)
             result.append(paragraph(html_output))
+
+        result.append(section("GTD Usage and examples"))
+        result.append(paragraph(self.usage().replace("\n", "<br>")))
+        result.append(paragraph(self.examples().replace("\n", "<br>")))
         return result 
     
     def get_context_field(self, sample_task_key: str):
@@ -365,3 +369,23 @@ class CommandExecutor:
                 parent=row["Parent"],
                 description=row["Description"]
             )
+    def usage(self):
+        return """
+        Usage: gtd COMMAND [ARGS]
+        Commands:
+        - search
+        - report
+        - create_ticket
+        - import_csv
+
+        For more information about a command, use gtd COMMAND --help
+        """
+    def examples(self):
+        return """
+        Examples:
+        - gtd search --jql "filter = 'Tasks this month'"
+        - gtd report
+        - gtd create_ticket --summary "Test" --context "Work" --duedate "2021-10-10" --parent "GTD-1"
+        - gtd import_csv tasks.csv
+        """
+    
