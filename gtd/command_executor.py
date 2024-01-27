@@ -328,6 +328,9 @@ class CommandExecutor:
                 return blue("%.2f" % percentage, block=True)
     
     def create_ticket(self, summary, context, duedate, *, parent: str = None, description = ""):
+        """
+        Example: gtd create_ticket --summary "Test" --context "Work" --duedate "2021-10-10" --parent "GTD-1"
+        """
         sample_task = self.search("filter = 'Tasks this month'")[0]
         params = {
             "project": "GTD",
@@ -350,6 +353,8 @@ class CommandExecutor:
         - Due date
         - Parent
         - Description
+
+        Example: gtd import_csv tasks.csv
         """
         df = pd.read_csv(path)
         for i, row in df.iterrows():
