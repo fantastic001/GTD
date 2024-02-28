@@ -386,6 +386,6 @@ class CommandExecutor:
         - gtd search --jql "filter = 'Tasks this month'"
         - gtd report
         - gtd create_ticket --summary "Test" --context "Work" --duedate "2021-10-10" --parent "GTD-1"
-        - gtd import_csv tasks.csv
+        - gtd import_csv --path tasks.csv
         """
     
