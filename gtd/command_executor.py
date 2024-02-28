@@ -336,6 +336,8 @@ class CommandExecutor:
         Example: gtd create_ticket --summary "Test" --context "Work" --duedate "2021-10-10" --parent "GTD-1"
         """
         sample_task = self.search("filter = 'Tasks this month'")[0]
+        if description is None or not isinstance(description, str):
+            description = ""
         params = {
             "project": "GTD",
             "summary": summary,
@@ -362,13 +364,14 @@ class CommandExecutor:
         """
         df = pd.read_csv(path)
         for i, row in df.iterrows():
-            self.create_ticket(
+            ticket = self.create_ticket(
                 summary=row["Summary"],
                 context=row["Context"],
                 duedate=row["Due date"],
                 parent=row["Parent"],
                 description=row["Description"]
             )
+            print("Created ticket: %s" % ticket.key)
     def usage(self):
         return """
         Usage: gtd COMMAND [ARGS]
