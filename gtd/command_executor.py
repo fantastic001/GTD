@@ -190,9 +190,10 @@ class CommandExecutor:
         else:
             result.append(tickets(self.search("filter = 'Backlog' and duedate is empty")[:1]))
 
-        # Weekly retro
-        result.append(section("Weekly retro"))
-        result += self.retro(use_html=True)
+        # Weekly retro shown only on Sunday and Monday 
+        if datetime.datetime.now().weekday() in [6, 0]:
+            result.append(section("Weekly retro"))
+            result += self.retro(use_html=True)
         
         
         # Badly specificed 
@@ -223,7 +224,7 @@ class CommandExecutor:
         # Context distribution 
         result.append(section("Context distribution"))
         result.append(table(self.get_context_distribution()))
-        result.append(paragraph("Legen: "))
+        result.append(paragraph("Legend: "))
         result.append(paragraph(green("Context in expected range.")))
         result.append(paragraph(yellow("Context is hot. Decrease number of tickets.")))
         result.append(paragraph(blue("Context is cold. Increase number of tickets.")))
