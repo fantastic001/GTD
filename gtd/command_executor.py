@@ -141,6 +141,31 @@ class CommandExecutor:
             result.append("+ Number of Finished tasks: %d" % len(tasks))
             result.append("+ Number of Finished tasks without project: %d" % len(epic_to_tasks[NON_PROJECT_EPIC_SUMMARY]))        
         return result
+    
+    def eating_schedule(self):
+        """
+        Reads meals from ods file stored locally and returns a schedule for the next 7 days
+        """
+        import pandas as pd 
+        meals = ["Breakfast", "Lunch", "Dinner", "Snack"]
+        df = {m: pd.read_excel(config["meals"], sheet_name=m) for m in meals}
+        result = []
+        weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        for i, day in enumerate(weekdays):
+            day_in_year = datetime.date.today().isocalendar()[1] + i
+            meals_for_day = {m: df[m].iloc[day_in_year % len(df[m])] for m in meals}
+            table_records = [
+                {
+                    "Meal": m,
+                    "Name": meals_for_day[m]["Name"],
+                    "Supplier": meals_for_day[m]["Supplier"],
+                } for m in meals
+            ]
+            result.append(section(day, level=1))
+            result.append(table(table_records))
+        return result
+            
+            
 
     def report(self):
         result = [] 
@@ -191,11 +216,15 @@ class CommandExecutor:
             result.append(tickets(self.search("filter = 'Backlog' and duedate is empty")[:1]))
 
         # Weekly retro shown only on Sunday and Monday 
-        if datetime.datetime.now().weekday() in [6, 0]:
-            result.append(section("Weekly retro"))
-            result += self.retro(use_html=True)
+        if config.get("show_meal_schedule", False):
+            if datetime.datetime.now().weekday() in [6, 0]:
+                result.append(section("Weekly retro"))
+                result += self.retro(use_html=True)
         
-        
+        # print eating schedule on Sunday for next week 
+        if datetime.datetime.now().weekday() == 6 or not config.get("show_meal_schedule_only_on_sunday", True):
+            result.append(section("Eating schedule"))
+            result += self.eating_schedule()
         # Badly specificed 
         result.append(section("Badly specified tickets"))
         if len(bad_tickets) > 0:
