@@ -169,6 +169,14 @@ class CommandExecutor:
 
     def report(self):
         result = [] 
+        # Use UTF-8 encoding
+        result.append("<!DOCTYPE html>")
+        result.append("<html>")
+        result.append("<head>")
+        result.append("<meta charset='utf-8'>")
+        result.append("</head>")
+
+        result.append("<body>")
         # Rating 
         bad_tickets = self.search("filter = 'Badly specified tasks'")
         bad_epics = self.search("filter = 'Badly specified epics'")
@@ -278,6 +286,9 @@ class CommandExecutor:
         result.append(section("GTD Usage and examples"))
         result.append(paragraph(self.usage().replace("\n", "<br>")))
         result.append(paragraph(self.examples().replace("\n", "<br>")))
+
+        result.append("</body>")
+        result.append("</html>")
         return result 
     
     def get_context_field(self, sample_task_key: str):
@@ -357,9 +368,9 @@ class CommandExecutor:
             return green("%.2f%%" % percentage, block=True) 
         else:
             if percentage > limits["max"]:
-                return yellow("%.2f" % percentage, block=True)
+                return yellow("%.2f%%" % percentage, block=True)
             else:
-                return blue("%.2f" % percentage, block=True)
+                return blue("%.2f%%" % percentage, block=True)
     
     def create_ticket(self, summary, context, duedate, *, parent: str = None, description = ""):
         """
