@@ -7,8 +7,7 @@ import jira
 import json 
 import os
 import requests 
-
-
+from gtd.drive import Spreadsheet
 
 from jira.resources import Issue 
 
@@ -148,7 +147,14 @@ class CommandExecutor:
         """
         import pandas as pd 
         meals = ["Breakfast", "Lunch", "Dinner", "Snack"]
-        df = {m: pd.read_excel(config["meals"], sheet_name=m) for m in meals}
+        meal_file_path = config["meals"]
+        df = {}
+        if meal_file_path.startswith("drive://"):
+            meal_file_path = meal_file_path.replace("drive://", "")
+            for m in meals:
+                df[m] = Spreadsheet(meal_file_path).open_pandas(m)
+        else:
+            df = {m: pd.read_excel(config["meals"], sheet_name=m) for m in meals}
         result = []
         weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         for i, day in enumerate(weekdays):
