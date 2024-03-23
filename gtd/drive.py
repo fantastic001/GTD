@@ -6,6 +6,8 @@ import subprocess
 import pandas as pd 
 class Spreadsheet(object):
     def __init__(self, path: str) -> None:
+        if not path.endswith(".ods"):
+            path = path + ".ods"
         self.path = path
     def copy(self, destination: str):
         cmd = [
