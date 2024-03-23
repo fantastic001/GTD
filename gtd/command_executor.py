@@ -158,7 +158,7 @@ class CommandExecutor:
         result = []
         weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         for i, day in enumerate(weekdays):
-            day_in_year = datetime.date.today().isocalendar()[1] + i
+            day_in_year = datetime.date.today().isocalendar().week * 7 + i
             meals_for_day = {m: df[m].iloc[day_in_year % len(df[m])] for m in meals}
             table_records = [
                 {
