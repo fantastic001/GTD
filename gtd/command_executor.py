@@ -212,15 +212,24 @@ class CommandExecutor:
             rate = blue("%.2f - rest for %d days" % (rate, (resolved - 28) // 4))
         result.append(paragraph("Resolution rate: " + rate))
 
+        # find all tasks overdue for today 
+        result.append(section("Overdue tasks"))
+        result.append(tickets(tickets_overdue, extended=True))
         # Due this week 
         contexts = [task.raw["fields"]["customfield_10036"]["value"] for task in tickets_this_week]
-        context_tasks = {
-            c: [t for t in tickets_this_week if t.raw["fields"]["customfield_10036"]["value"] == c] for c in contexts
-        }
         result.append(section("Due this week"))
-        for context, tasks in context_tasks.items():
-            result.append(section(context, 1))
-            result.append(tickets(tasks, extended=True))
+        # iterate over days 
+        for day in range(8):
+            result.append(section((datetime.date.today() + datetime.timedelta(days=day)).strftime(r"%A, %d %B %Y"), 1))
+            tasks_due_this_day = [t for t in tickets_this_week if t.fields.duedate == (datetime.date.today() + datetime.timedelta(days=day)).strftime(r"%Y-%m-%d")]
+            context_tasks = {
+                c: [t for t in tasks_due_this_day if t.raw["fields"]["customfield_10036"]["value"] == c] for c in contexts
+            }
+            for context, tasks in context_tasks.items():
+                if tasks == []:
+                    continue
+                result.append(section(context, 2))
+                result.append(tickets(tasks, extended=True))
         result.append(section("Delegated tasks"))
         result.append(tickets(self.search("filter = 'Delegated'"), extended=True))
         result.append(section("Non-urgent tasks focus of the day"))
