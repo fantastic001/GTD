@@ -214,7 +214,10 @@ class CommandExecutor:
 
         # find all tasks overdue for today 
         result.append(section("Overdue tasks"))
-        result.append(tickets(tickets_overdue, extended=True))
+        contexts_overdue = [task.raw["fields"]["customfield_10036"]["value"] for task in tickets_overdue]
+        for context in set(contexts_overdue):
+            result.append(section(context, 2))
+            result.append(tickets([t for t in tickets_overdue if t.raw["fields"]["customfield_10036"]["value"] == context], extended=True))
         # Due this week 
         contexts = [task.raw["fields"]["customfield_10036"]["value"] for task in tickets_this_week]
         result.append(section("Due this week"))
