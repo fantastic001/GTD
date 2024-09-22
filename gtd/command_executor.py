@@ -70,6 +70,7 @@ def paragraph(text):
 def table(table_records):
     return pd.DataFrame(table_records).to_html(index=False, escape=False)
 class CommandExecutor:
+    MAX_DEADLINES_PER_DAY = 1
     def search(self, jql: str, expand: bool = False): 
         return ctrl.search_issues(jql, maxResults=None, expand=expand) 
     
@@ -91,7 +92,7 @@ class CommandExecutor:
             formatted = t.strftime(r"%Y-%m-%d")
             amount = len([d for d in duedates if d == formatted])
             result.append((formatted, amount))
-        result =  [(x,(4-y) if not only_once else 1) for x,y in result if y < 4]
+        result =  [(x,(self.MAX_DEADLINES_PER_DAY-y) if not only_once else 1) for x,y in result if y < self.MAX_DEADLINES_PER_DAY]
         if flatten:
             return [[r[0]] * r[1] for r in result]
         else:
@@ -266,7 +267,10 @@ class CommandExecutor:
         # Report of available days
         result.append(section("Report of available days"))
         result.append(paragraph("The following days are available to be used as due dates:"))
-        result.append(items(self.get_free_slots(flatten=False, only_once=False)))
+        if self.MAX_DEADLINES_PER_DAY == 1:
+            result.append(items(self.get_free_slots(flatten=True, only_once=True)))
+        else:
+            result.append(items(self.get_free_slots(flatten=False, only_once=False)))
         
         # Critical days 
         critical_days = self.get_critical_days()
@@ -274,7 +278,7 @@ class CommandExecutor:
             result.append(section("Days with many tasks due"))
             for day, tasks in critical_days.items():
                 result.append(section(day, level=1))
-                result.append(items(tasks))
+                result.append(tickets(tasks, extended=True))
 
         # Context distribution 
         result.append(section("Context distribution"))
@@ -359,8 +363,8 @@ class CommandExecutor:
         for t in tickets:
             d[t.fields.duedate] = d.get(t.fields.duedate, []) + [t]
         for day, tasks in d.items():
-            if len(tasks) > 4:
-                result[day] = [x.fields.summary for x in tasks] 
+            if len(tasks) > self.MAX_DEADLINES_PER_DAY:
+                result[day] = tasks
         return result
     
     def show_context_share(self, c, percentage):
