@@ -288,6 +288,14 @@ class CommandExecutor:
         result.append(paragraph(yellow("Context is hot. Decrease number of tickets.")))
         result.append(paragraph(blue("Context is cold. Increase number of tickets.")))
 
+        result.append(section("Stakeholders"))
+        sh = self.get_stakeholders()
+        data = {
+            "Name": [s[0] for s in sh],
+            "Number of tickets": [s[1] for s in sh]
+        }
+        result.append(table(data))
+
         result.append(section("Other reports"))
         for report_script in config.get("scripts", []):
             result.append(section(report_script["name"]))
@@ -340,6 +348,23 @@ class CommandExecutor:
         ).json()["data"]["issue"]["fields"]
         context_field = [f for f in fields if f["title"] == "Context"][0]
         return context_field
+
+    def get_stakeholders_field(self, epic: jira.Issue):
+        l =  epic.raw["fields"]["customfield_10038"] or []
+        return [s.encode("utf-8") for s in l]
+        
+
+    def get_stakeholders(self):
+        epics = self.search("issuetype = Epic AND statuscategory != Done")
+        
+        stakeholders = []
+        for i, epic in enumerate(epics):
+            stakeholders += self.get_stakeholders_field(epic)
+        stakeholders = [s.decode("utf-8") for s in stakeholders]
+        stakeholder_dist = {}
+        for s in stakeholders:
+            stakeholder_dist[s] = stakeholder_dist.get(s, 0) + 1
+        return list(sorted(stakeholder_dist.items(), key=lambda x: x[1], reverse=True))
 
     def get_context_distribution(self):
         tasks = self.search("filter = 'Tasks this month'")
