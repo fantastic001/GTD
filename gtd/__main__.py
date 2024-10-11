@@ -11,8 +11,9 @@ def pretty_print(obj):
         for e in obj:
             pretty_print(e)
     elif isinstance(obj, dict):
-        import json 
-        print(json.dumps(obj, indent=4, sort_keys=True))
+        for k, v in obj.items():
+            print("%s: " % k, end="")
+            pretty_print(v)
     else:
         print(obj)
 
