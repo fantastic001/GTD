@@ -8,14 +8,20 @@ import json
 import os
 import requests 
 from gtd.drive import Spreadsheet
-
+from gtd.config import * 
 from jira.resources import Issue 
 
-config = json.loads(open(os.environ.get("GTD_CONFIG", os.path.join(os.environ["HOME"],".config", "gtd.json"))).read())
 
-ctrl = jira.JIRA(config["url"], basic_auth=(config["username"], config["password"]))
+def get_jira_client():
+    return jira.JIRA(
+        get_config_str("jira_url", "", "URL of Jira instance"), 
+        basic_auth=(
+            get_config_str("jira_username", "", "Username of jira user"), 
+            get_config_str("jira_password", "", "Password of jira user")
+        )
+    )
 
-
+ctrl = get_jira_client()
 
 def ticket(ticket: Issue, extended = False) -> str:
     return "[<a href='%s'>%s</a>] %s (%s)%s%s" % (
@@ -56,10 +62,6 @@ def img(src):
 def items(l: list[Any]):
     return "<ul>\n%s</ul>" % "\n".join("<li>%s</li>" % str(t) for t in l)
 
-def tickets(l, extended=False):
-    if all([x.fields.duedate is not None for x in l]):
-        l = sorted(l, key= lambda x: datetime.datetime.strptime(x.fields.duedate, "%Y-%m-%d"))
-    return items([ticket(t, extended=extended) for t in l])
 
 def section(text, level=0):
     return "<h%d>%s</h%d>" % (level+1, text, level+1)
@@ -69,6 +71,12 @@ def paragraph(text):
 
 def table(table_records):
     return pd.DataFrame(table_records).to_html(index=False, escape=False)
+
+def tickets(l, extended=False):
+    if all([x.fields.duedate is not None for x in l]):
+        l = sorted(l, key= lambda x: datetime.datetime.strptime(x.fields.duedate, "%Y-%m-%d"))
+    return items([ticket(t, extended=extended) for t in l])
+
 class CommandExecutor:
     MAX_DEADLINES_PER_DAY = 1
     def search(self, jql: str, expand: bool = False): 
@@ -148,7 +156,7 @@ class CommandExecutor:
         """
         import pandas as pd 
         meals = ["Breakfast", "Lunch", "Dinner", "Snack"]
-        meal_file_path = config["meals"]
+        meal_file_path = get_config_str("meals", "", "Path to meals file")
         df = {}
         if meal_file_path.startswith("drive://"):
             meal_file_path = meal_file_path.replace("drive://", "")
@@ -243,13 +251,13 @@ class CommandExecutor:
             result.append(tickets(self.search("filter = 'Backlog' and duedate is empty")[:1]))
 
         # Weekly retro shown only on Sunday and Monday 
-        if config.get("show_meal_schedule", False):
+        if get_config_bool("show_meal_schedule", False, "Show eating schedule"):
             if datetime.datetime.now().weekday() in [6, 0]:
                 result.append(section("Weekly retro"))
                 result += self.retro(use_html=True)
         
         # print eating schedule on Sunday for next week 
-        if datetime.datetime.now().weekday() == 6 or not config.get("show_meal_schedule_only_on_sunday", True):
+        if datetime.datetime.now().weekday() == 6 or not get_config_bool("show_meal_schedule_only_on_sunday", True, "Show eating schedule only on Sunday"):
             result.append(section("Eating schedule"))
             result += self.eating_schedule()
         # Badly specificed 
@@ -281,12 +289,13 @@ class CommandExecutor:
                 result.append(tickets(tasks, extended=True))
 
         # Context distribution 
-        result.append(section("Context distribution"))
-        result.append(table(self.get_context_distribution()))
-        result.append(paragraph("Legend: "))
-        result.append(paragraph(green("Context in expected range.")))
-        result.append(paragraph(yellow("Context is hot. Decrease number of tickets.")))
-        result.append(paragraph(blue("Context is cold. Increase number of tickets.")))
+        if get_config_bool("show_context_distribution", False, "Show context distribution"):
+            result.append(section("Context distribution"))
+            result.append(table(self.get_context_distribution()))
+            result.append(paragraph("Legend: "))
+            result.append(paragraph(green("Context in expected range.")))
+            result.append(paragraph(yellow("Context is hot. Decrease number of tickets.")))
+            result.append(paragraph(blue("Context is cold. Increase number of tickets.")))
 
         result.append(section("Stakeholders"))
         sh = self.get_stakeholders()
@@ -297,7 +306,7 @@ class CommandExecutor:
         result.append(table(data))
 
         result.append(section("Other reports"))
-        for report_script in config.get("scripts", []):
+        for report_script in get_config_list("scripts", [], "List of scripts to run for report"):
             result.append(section(report_script["name"]))
             result.append(paragraph(report_script.get("description", "")))
             result.append(paragraph("Result:"))
