@@ -1,40 +1,18 @@
 
-import trello 
-import os
-import json  
-import datetime 
-
-current_utc_time = datetime.datetime.utcnow()
-current_time = datetime.datetime.now()
-dt = current_time - current_utc_time
-
-def utc_to_this_tz(utc_time):
-    return datetime.datetime.strptime(utc_time, "%Y-%m-%dT%H:%M:%S.%fZ") + dt
-
-apikey = json.loads(open('apikey.json').read())["key"]
-api = trello.TrelloApi(apikey=apikey)
-
-api.set_token(json.loads(open('apikey.json').read())["token"])
+from gtd.trello import TrelloAPI
+import sys 
+import json
 
 
-boards = api.members.get_board('me')
+api = TrelloAPI()
 
-backlog_board = next(b for b in boards if b['name'] == 'Backlog')
+if sys.argv[1] == "backup":
+    cards = api.get_open_cards("Backlog")
+    closed_cards = api.get_closed_cards("Backlog")
+    backup_file = sys.argv[2]
+    with open(backup_file, "w") as f:
+        json.dump({
+            "open_cards": cards,
+            "closed_cards": closed_cards
+        }, f)
 
-lists = api.boards.get_list(backlog_board['id'])
-
-archived_cards = api.boards.get_card(backlog_board['id'], filter='closed')
-print("Archived cards")
-for c in archived_cards:
-    print(c['name'])
-    print("   Archived on " + utc_to_this_tz(c['dateLastActivity']).strftime("%Y-%m-%d %H:%M:%S"))
-    print("   List: " + next(l['name'] for l in lists if l['id'] == c['idList']))
-
-# for l in lists:
-#     print(l['name'])
-#     cards = api.lists.get_card(l['id'])
-#     for c in cards:
-#         print(f"  {c['name']}")
-#     archived_cards = [c for c in cards if c['closed']]
-#     for c in archived_cards:
-#         print(f"  {c['name']}")
