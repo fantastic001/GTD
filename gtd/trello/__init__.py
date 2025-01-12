@@ -59,6 +59,7 @@ def generate_report():
 
     api = TrelloAPI()
     backlog = api.get_lists("Backlog")
+    open_cards = api.get_open_cards("Backlog")
 
     result.append(section("Tickets this week"))
     result.append(items([ticket(c) for c in api.get_open_cards("Backlog") if "This week" in [l["name"] for l in c["labels"]]]))
@@ -76,6 +77,17 @@ def generate_report():
     result.append(paragraph("Cards closed this week: %d" % len(closed_this_week)))
     result.append(section("Closed cards this week"))
     result.append(items([ticket(c) for c in closed_this_week]))
+    result.append(section("Number of open cards per list"))
+    data_table = [] 
+    open_cards
+    for l in backlog:
+        data_table.append({
+            "List": l["name"],
+            "Number of open cards": len([c for c in open_cards if c["idList"] == l["id"]])
+        })
+    df = pd.DataFrame(data_table)
+    df["Cuumulative"] = df["Number of open cards"].cumsum()
+    result.append(table(df))
     result.append("</body>")
     result.append("</html>")
     return "\n".join(result)
