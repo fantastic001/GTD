@@ -51,6 +51,9 @@ class TrelloAPI:
     def get_closed_lists(self, board_name):
         board = self.get_board(board_name)
         return self.api.boards.get_list(board['id'], filter='closed')
+    
+    def get_list_name(self, card):
+        return self.api.lists.get(card['idList'])['name']
 
 def generate_report():
     result = [] 
@@ -79,11 +82,19 @@ def generate_report():
     result.append(paragraph("Number of open cards: %d" % len(api.get_open_cards("Backlog"))))
     result.append(paragraph("Start of week: %s" % start_of_week))
     closed_this_week = list([c for c in api.get_closed_cards("Backlog") if datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() >= start_of_week])
+    list_to_closed_cards = {}
+    for c in closed_this_week:
+        list_name = api.get_list_name(c)
+        if list_name not in list_to_closed_cards:
+            list_to_closed_cards[list_name] = []
+        list_to_closed_cards[list_name].append(c)
     if len(closed_this_week) > 0:
         result.append(paragraph("Last card closed on %s" % api.get_closed_cards("Backlog")[0]["dateLastActivity"]))
     result.append(paragraph("Cards closed this week: %d" % len(closed_this_week)))
     result.append(section("Closed cards this week"))
-    result.append(items([ticket(c) for c in closed_this_week]))
+    for list_name, closed_cards in list_to_closed_cards.items():
+        result.append(section(list_name, level=1))
+        result.append(items([ticket(c) for c in closed_cards]))
     result.append(section("Number of open cards per list"))
     data_table = [] 
     open_cards
