@@ -13,6 +13,12 @@ def utc_to_this_tz(utc_time):
     dt = current_time - current_utc_time
     return datetime.datetime.strptime(utc_time, "%Y-%m-%dT%H:%M:%S.%fZ") + dt
 
+def CheckField(field):
+    return lambda c: field in c and c[field] is not None and c[field]
+
+def NotCheckField(field):
+    return lambda c: field not in c or c[field] is None or not c[field]
+
 class TrelloAPI:
     def __init__(self, apikey=None, token=None) -> None:
         
@@ -36,11 +42,11 @@ class TrelloAPI:
 
     def get_open_cards(self, board_name):
         board = self.get_board(board_name)
-        return self.api.boards.get_card(board['id'])
+        return list(filter(NotCheckField("dueComplete"), self.api.boards.get_card(board['id'])))
 
     def get_closed_cards(self, board_name):
         board = self.get_board(board_name)
-        return self.api.boards.get_card(board['id'], filter='closed')
+        return self.api.boards.get_card(board['id'], filter='closed') + list(filter(CheckField("dueComplete"), self.api.boards.get_card(board['id'])))
 
     def get_closed_lists(self, board_name):
         board = self.get_board(board_name)
@@ -73,7 +79,8 @@ def generate_report():
     result.append(paragraph("Number of open cards: %d" % len(api.get_open_cards("Backlog"))))
     result.append(paragraph("Start of week: %s" % start_of_week))
     closed_this_week = list([c for c in api.get_closed_cards("Backlog") if datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() >= start_of_week])
-    result.append(paragraph("Last card closed on %s" % api.get_closed_cards("Backlog")[0]["dateLastActivity"]))
+    if len(closed_this_week) > 0:
+        result.append(paragraph("Last card closed on %s" % api.get_closed_cards("Backlog")[0]["dateLastActivity"]))
     result.append(paragraph("Cards closed this week: %d" % len(closed_this_week)))
     result.append(section("Closed cards this week"))
     result.append(items([ticket(c) for c in closed_this_week]))
