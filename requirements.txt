@@ -4,3 +4,4 @@ requests
 odfpy
 lxml
 trello
+tabulate
