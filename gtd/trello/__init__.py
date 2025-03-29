@@ -5,7 +5,7 @@ import json
 import datetime 
 from gtd.config import get_config_str
 from gtd.style import *
-
+from gtd.extensions import load_extensions
 
 def utc_to_this_tz(utc_time: str) -> datetime.datetime | None:
     current_utc_time = datetime.datetime.utcnow()
@@ -164,6 +164,8 @@ def generate_report():
         df = pd.DataFrame(data_table)
         df["Cuumulative"] = df["Number of open cards"].cumsum()
         result.append(table(df))
+
+        result += load_extensions()
     except ValueError as e:
         result.append(paragraph("Error: %s" % e))
     result.append("</body>")
