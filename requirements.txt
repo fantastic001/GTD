@@ -5,3 +5,4 @@ odfpy
 lxml
 trello
 tabulate
+markdown-it-py
