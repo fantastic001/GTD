@@ -139,6 +139,21 @@ def generate_report():
         result.append(paragraph("Remaining days in year: %d" % (365 - days_passed)))
         result.append(paragraph("Required closed tasks per day: %.2f" % ((len(api.get_open_cards("Backlog"))) / (365 - days_passed))))
         result.append(paragraph("Start of week: %s" % start_of_week))
+        result.append(
+            paragraph(
+                "If you continue with this closing rate, all tasks will be closed by %s" % (
+                    (datetime.datetime.now().date() + datetime.timedelta(days=(len(api.get_open_cards("Backlog")) / (number_closed_cards / days_passed)))).strftime("%Y-%m-%d")
+                )
+            )
+        )
+        result.append(
+            paragraph(
+                "If you continue with closing rate 1 per day, all tasks will be closed by %s" % (
+                    (datetime.datetime.now().date() + datetime.timedelta(days=(len(api.get_open_cards("Backlog"))))).strftime("%Y-%m-%d")
+                )
+            )
+        )
+        
         closed_this_week = list([c for c in api.get_closed_cards("Backlog") if datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() >= start_of_week])
         list_to_closed_cards = {}
         for c in closed_this_week:
