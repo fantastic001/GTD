@@ -137,11 +137,29 @@ def generate_report():
         open_cards = api.get_open_cards("Backlog")
         this_week = [c for c in api.get_open_cards("Backlog") if "This week" in [l["name"] for l in c["labels"]]]
 
-        result.append(section("Tickets this week"))
-        result.append(items([ticket(c) for c in this_week]))
+        card_to_list = {}
+        for c in this_week:
+            list_name = api.get_list_name(c)
+            if list_name not in card_to_list:
+                card_to_list[list_name] = []
+            card_to_list[list_name].append(c)
+
+
+        result.append(section("Tickets this week with checklist"))
+        for mylist, cards in card_to_list.items():
+            cards = list([c for c in cards if CheckField("idChecklists")(c)])
+            if len(cards) == 0:
+                continue
+            result.append(section(mylist, level=1))
+            result.append(items([ticket(c) for c in cards]))
 
         result.append(section("Tickets this week without checklist"))
-        result.append(items([ticket(c) for c in this_week if not CheckField("idChecklists")(c)]))
+        for mylist, cards in card_to_list.items():
+            cards = list([c for c in cards if NotCheckField("idChecklists")(c)])
+            if len(cards) == 0:
+                continue
+            result.append(section(mylist, level=1))
+            result.append(items([ticket(c) for c in cards]))
         
         number_closed_cards = len(api.get_closed_cards("Backlog"))
         days_passed = 1 + (datetime.datetime.now().date() - datetime.date(2025,1,5)).days
