@@ -110,6 +110,16 @@ class TrelloAPI:
         except Exception as e:
             print("Error getting list name: %s" % e)
             raise ValueError("Error getting list name")
+    
+    def get_checklist(self, card):
+        try:
+            return self.api.checklists.get(card['idChecklists'][0])
+        except KeyError:
+            raise ValueError("Key 'idChecklists' not found in card, API probably changed, data: %s" % card)
+        except Exception as e:
+            print("Error getting checklist: %s" % e)
+            raise ValueError("Error getting checklist")
+        
 
 def generate_report():
     result = [] 
@@ -125,9 +135,13 @@ def generate_report():
         api = TrelloAPI()
         backlog = api.get_lists("Backlog")
         open_cards = api.get_open_cards("Backlog")
+        this_week = [c for c in api.get_open_cards("Backlog") if "This week" in [l["name"] for l in c["labels"]]]
 
         result.append(section("Tickets this week"))
-        result.append(items([ticket(c) for c in api.get_open_cards("Backlog") if "This week" in [l["name"] for l in c["labels"]]]))
+        result.append(items([ticket(c) for c in this_week]))
+
+        result.append(section("Tickets this week without checklist"))
+        result.append(items([ticket(c) for c in this_week if not CheckField("idChecklists")(c)]))
         
         number_closed_cards = len(api.get_closed_cards("Backlog"))
         days_passed = 1 + (datetime.datetime.now().date() - datetime.date(2025,1,5)).days
