@@ -12,74 +12,17 @@ from gtd.config import *
 from jira.resources import Issue 
 from gtd.style import * 
 from gtd.extensions import load_extensions
-
+from gtd.config import get_classes_inheriting
+from gtd.importer import Importer, import_task
 
 @pluggable
 def generate_report():
     return None 
 
-def get_jira_credentials():
-    return (
-        get_config_str("jira_username", "", "Username of jira user"),
-        get_config_str("jira_password", "", "Password of jira user")
-    )
 
-def get_jira_client():
-    url = get_config_str("jira_url", "", "URL of Jira instance")
-    if url == "":
-        return None 
-    return jira.JIRA(
-        url, 
-        basic_auth=get_jira_credentials(),
-    )
-
-ctrl = get_jira_client()
-
-def tickets(l, extended=False):
-    if all([x.fields.duedate is not None for x in l]):
-        l = sorted(l, key= lambda x: datetime.datetime.strptime(x.fields.duedate, "%Y-%m-%d"))
-    return items([ticket(t, extended=extended) for t in l])
 
 class CommandExecutor:
-    MAX_DEADLINES_PER_DAY = 1
-    def search(self, jql: str, expand: bool = False): 
-        if ctrl is None:
-            raise Exception("Jira client is not initialized")
-        return ctrl.search_issues(jql, maxResults=None, expand=expand) 
     
-    def graphql_call(self, query, **vars):
-        jira_graphql_url = get_config_str("jira_graphql_url", "", "URL of Jira GraphQL endpoint")
-        if jira_graphql_url == "":
-            raise Exception("Jira GraphQL URL is not set")
-        username, password = get_jira_credentials()
-        config = {
-            "url": jira_graphql_url,
-            "username": username,
-            "password": password
-        }
-        response = requests.post(
-            url=config["url"]+"/rest/graphql/1/", 
-            auth=(config["username"], config["password"]), 
-            json={
-                'query': query,
-                "variables": vars
-            })
-        return response
-    
-    def get_free_slots(self, *, flatten: bool = False, only_once: bool = False):
-        tickets: list[jira.Issue] = self.search("issuetype = Task AND statuscategory != Done AND duedate < 60days AND duedate is not empty")
-        duedates = [ticket.fields.duedate for ticket in tickets]
-        result = [] 
-        for t in [datetime.date.today() + datetime.timedelta(days=i) for i in range(60)]:
-            formatted = t.strftime(r"%Y-%m-%d")
-            amount = len([d for d in duedates if d == formatted])
-            result.append((formatted, amount))
-        result =  [(x,(self.MAX_DEADLINES_PER_DAY-y) if not only_once else 1) for x,y in result if y < self.MAX_DEADLINES_PER_DAY]
-        if flatten:
-            return [[r[0]] * r[1] for r in result]
-        else:
-            return result
-        
     def retro(self, * ,use_html: bool = False):
         tasks: list[Issue] = self.search("filter = 'weekly retro'")
         epics = [task.raw.get("fields", {}).get("parent", {}).get("fields", {}).get("summary", "") for task in tasks]
@@ -129,274 +72,41 @@ class CommandExecutor:
         custom_report = generate_report()
         if custom_report is not None:
             return custom_report
-        result = [] 
-        # Use UTF-8 encoding
-        result.append("<!DOCTYPE html>")
-        result.append("<html>")
-        result.append("<head>")
-        result.append("<meta charset='utf-8'>")
-        result.append("</head>")
+        return ""
 
-        result.append("<body>")
-        # Rating 
-        bad_tickets = self.search("filter = 'Badly specified tasks'")
-        bad_epics = self.search("filter = 'Badly specified epics'")
-        tickets_overdue = self.search("filter = 'Tasks this week' and duedate < endOFDay()")
-        tickets_this_week = self.search("filter = 'Tasks this week'")
-        rating = ""
-        if len(bad_tickets) > 0 or len(bad_epics) > 0 or len(tickets_overdue) > 1:
-            rating = red("Bad")
-        elif len(tickets_overdue) > 0 or len(tickets_this_week) > 21:
-            rating = yellow("Concerning")
-        elif len(tickets_this_week) > 5:
-            rating = green("Good")
+    def get_importer(self, *, importer: str = "") -> Importer:
+        """
+        Returns the importer class specified by the user. If no importer is specified, it returns the first one found.
+        """
+        importers = get_classes_inheriting(Importer)
+        if len(importers) == 0:
+            raise Exception("No importers available")
+        elif len(importers) > 1 and importer == "":
+            raise Exception("Multiple importers available. Please specify one.")
+        elif len(importers) == 1 and importer == "":
+            importer = importers[0]
+        elif importer not in [i.__name__ for i in importers]:
+            raise Exception("Importer %s not found" % importer)
         else:
-            rating = blue("Excellent")
-        result.append(paragraph("Overall rating: %s" % rating))
-        
-        # average resolution rate in past week 
-        resolved = self.search("resolved > -7days")
-        resolved = len(resolved)
-        rate = resolved / 7
+            importer = [i for i in importers if i.__name__ == importer][0]
+        return importer()
 
-        if rate >= 4 and rate < 6:
-            rate = green("%.2f - keep doing 4 tasks per day!" % rate)
-        elif rate < 4:
-            rate = yellow("%.2f - do %d tasks today to get to rate of 4" % (rate, 32-resolved))
-        else:
-            rate = blue("%.2f - rest for %d days" % (rate, (resolved - 28) // 4))
-        result.append(paragraph("Resolution rate: " + rate))
 
-        # find all tasks overdue for today 
-        result.append(section("Overdue tasks"))
-        contexts_overdue = [task.raw["fields"]["customfield_10036"]["value"] for task in tickets_overdue]
-        for context in set(contexts_overdue):
-            result.append(section(context, 2))
-            result.append(tickets([t for t in tickets_overdue if t.raw["fields"]["customfield_10036"]["value"] == context], extended=True))
-        # Due this week 
-        contexts = [task.raw["fields"]["customfield_10036"]["value"] for task in tickets_this_week]
-        result.append(section("Due this week"))
-        # iterate over days 
-        for day in range(8):
-            result.append(section((datetime.date.today() + datetime.timedelta(days=day)).strftime(r"%A, %d %B %Y"), 1))
-            tasks_due_this_day = [t for t in tickets_this_week if t.fields.duedate == (datetime.date.today() + datetime.timedelta(days=day)).strftime(r"%Y-%m-%d")]
-            context_tasks = {
-                c: [t for t in tasks_due_this_day if t.raw["fields"]["customfield_10036"]["value"] == c] for c in contexts
-            }
-            for context, tasks in context_tasks.items():
-                if tasks == []:
-                    continue
-                result.append(section(context, 2))
-                result.append(tickets(tasks, extended=True))
-        result.append(section("Delegated tasks"))
-        result.append(tickets(self.search("filter = 'Delegated'"), extended=True))
-        result.append(section("Non-urgent tasks focus of the day"))
-        if len(tickets_overdue) == 0 and len(tickets_this_week) < 21:
-            result.append(tickets(self.search("filter = 'Backlog' and duedate is empty")[:10]))
-        else:
-            result.append(tickets(self.search("filter = 'Backlog' and duedate is empty")[:1]))
-
-        result += load_extensions()
-        
-        # Weekly retro shown only on Sunday and Monday 
-        if get_config_bool("show_meal_schedule", False, "Show eating schedule"):
-            if datetime.datetime.now().weekday() in [6, 0]:
-                result.append(section("Weekly retro"))
-                result += self.retro(use_html=True)
-        
-        # Badly specificed 
-        result.append(section("Badly specified tickets"))
-        if len(bad_tickets) > 0:
-            result.append(tickets(bad_tickets))
-        else:
-            result.append(paragraph("There are no badly specified tickets"))
-        result.append(section("Badly specified epics"))
-        if len(bad_epics) > 0:
-            result.append(tickets(bad_epics))
-        else:
-            result.append(paragraph("There are no badly specified epics"))
-        
-        # Report of available days
-        result.append(section("Report of available days"))
-        result.append(paragraph("The following days are available to be used as due dates:"))
-        if self.MAX_DEADLINES_PER_DAY == 1:
-            result.append(items(self.get_free_slots(flatten=True, only_once=True)))
-        else:
-            result.append(items(self.get_free_slots(flatten=False, only_once=False)))
-        
-        # Critical days 
-        critical_days = self.get_critical_days()
-        if len(critical_days.keys()) > 0:
-            result.append(section("Days with many tasks due"))
-            for day, tasks in critical_days.items():
-                result.append(section(day, level=1))
-                result.append(tickets(tasks, extended=True))
-
-        # Context distribution 
-        if get_config_bool("show_context_distribution", False, "Show context distribution"):
-            result.append(section("Context distribution"))
-            if get_config_bool("show_context_distribution_table", False, "Show context distribution table"):
-                result.append(table(self.get_context_distribution()))
-            result.append(paragraph("Legend: "))
-            result.append(paragraph(green("Context in expected range.")))
-            result.append(paragraph(yellow("Context is hot. Decrease number of tickets.")))
-            result.append(paragraph(blue("Context is cold. Increase number of tickets.")))
-
-        result.append(section("Stakeholders"))
-        sh = self.get_stakeholders()
-        data = {
-            "Name": [s[0] for s in sh],
-            "Number of tickets": [s[1] for s in sh]
-        }
-        result.append(table(data))
-
-        result.append(section("Other reports"))
-        for report_script in get_config_list("scripts", [], "List of scripts to run for report"):
-            result.append(section(report_script["name"]))
-            result.append(paragraph(report_script.get("description", "")))
-            result.append(paragraph("Result:"))
-            escapes = {
-                "\n": "<br>",
-                "\t": "&nbsp;"*4,
-                " ": "&nbsp;"
-            }
-
-            html_output = os.popen(report_script["script"]).read()
-            if report_script.get("escape", True):
-                for k,v in escapes.items():
-                    html_output = html_output.replace(k, v)
-            result.append(paragraph(html_output))
-
-        result.append(section("GTD Usage and examples"))
-        result.append(paragraph(self.usage().replace("\n", "<br>")))
-        result.append(paragraph(self.examples().replace("\n", "<br>")))
-
-        result.append("</body>")
-        result.append("</html>")
-        return result 
-    
-    def get_context_field(self, sample_task_key: str):
-        fields = self.graphql_call("""
-            query fieldConfigurationQuery($issueKey: String) { 
-                issue(issueIdOrKey: $issueKey, latestVersion: true, screen: \"view\") {
-                          fields {
-                                key
-                                schema {
-                                    type
-                                    custom
-                                    customId
-                                    system
-                                    renderer
-                                }
-                                autoCompleteUrl
-                                allowedValues\n        
-                                operations        
-                                required
-                                editable
-                                title
-                            }    
-                        }
-            }
-        """,
-        issueKey=sample_task_key
-        ).json()["data"]["issue"]["fields"]
-        context_field = [f for f in fields if f["title"] == "Context"][0]
-        return context_field
-
-    def get_stakeholders_field(self, epic: jira.Issue):
-        l =  epic.raw["fields"]["customfield_10038"] or []
-        return [s.encode("utf-8") for s in l]
-        
-
-    def get_stakeholders(self):
-        epics = self.search("issuetype = Epic AND statuscategory != Done")
-        
-        stakeholders = []
-        for i, epic in enumerate(epics):
-            stakeholders += self.get_stakeholders_field(epic)
-        stakeholders = [s.decode("utf-8") for s in stakeholders]
-        stakeholder_dist = {}
-        for s in stakeholders:
-            stakeholder_dist[s] = stakeholder_dist.get(s, 0) + 1
-        return list(sorted(stakeholder_dist.items(), key=lambda x: x[1], reverse=True))
-
-    def get_context_distribution(self):
-        tasks = self.search("filter = 'Tasks this month'")
-        context_field = self.get_context_field(tasks[0].key)
-        contexts = [c["value"] for c in context_field["allowedValues"]]
-        context_tasks = {
-            c: [t for t in tasks if t.raw["fields"]["customfield_10036"]["value"] == c] for c in contexts
-        }
-        return [
-            {
-                "Context": c,
-                "Number of tickets": len(t),
-                "%": self.show_context_share(c, (100*len(t) / len(tasks)))
-            } for c,t in context_tasks.items()
-        ]
-
-    def get_critical_days(self, *, days: int = 32):
-        tickets = self.search("issuetype = Task AND statuscategory != Done AND duedate < %ddays" % days)
-        result = {}
-        d = {} 
-        for t in tickets:
-            d[t.fields.duedate] = d.get(t.fields.duedate, []) + [t]
-        for day, tasks in d.items():
-            if len(tasks) > self.MAX_DEADLINES_PER_DAY:
-                result[day] = tasks
-        return result
-    
-    def show_context_share(self, c, percentage):
-        rules = {
-            "Work": {
-                "max": 40,
-                "min": 10
-            },
-            "Petnica": {
-                "max": 20,
-                "min": 0
-            },
-            "University": {
-                "min": 20,
-                "max": 100
-            }
-        }
-        limits = rules.get(c, {
-            "max": 100,
-            "min": 0
-        })
-        if limits["min"] <= percentage and percentage <= limits["max"]:
-            return green("%.2f%%" % percentage, block=True) 
-        else:
-            if percentage > limits["max"]:
-                return yellow("%.2f%%" % percentage, block=True)
-            else:
-                return blue("%.2f%%" % percentage, block=True)
-    
-    def create_ticket(self, summary, *, parent: str = "", description = "", context: str = "", duedate: str = ""):
+    def create_ticket(self, summary, *, parent: str = "", description = "", context: str = "", duedate: str = "", importer: str = ""):
         """
         Example: gtd create_ticket --summary "Test" --context "Work" --duedate "2021-10-10" --parent "GTD-1"
         """
-        if ctrl is None:
-            raise Exception("Jira client is not initialized")
-        sample_task = self.search("filter = 'Tasks this month'")[0]
-        if description is None or not isinstance(description, str):
-            description = ""
-        params = {
-            "project": "GTD",
-            "summary": summary,
-            "description": description,
-            "issuetype": {"name": "Task"},
-        }
-        if parent:
-            params["parent"] = {"key": parent}
-        if context:
-            params[self.get_context_field(sample_task_key=sample_task.key)["key"]] = {"value": context}
-        if duedate:
-            params["duedate"] = duedate
-        ticket = ctrl.create_issue(fields=params)
-        return ticket
-    
+        import_task(
+            importer=self.get_importer(importer=importer),
+            summary=summary,
+            project=parent,
+            description=description,
+            context=context,
+            due_date=duedate,
+            unique=True,
+        )
+
+
     def import_csv(self, path: str):
         """
         Imports a csv file with the following columns:
@@ -418,6 +128,116 @@ class CommandExecutor:
                 description=row["Description"]
             )
             print("Created ticket: %s" % ticket.key)
+    
+    def upload(self, *, input: str = "", multiline: bool = False, checklists: bool = False, importer: str = "", parent: str = ""):
+        """
+        Uploads batch of tasks in text specified. 
+
+
+        :param input: Path of file to read from. If left to default, stdin is used.
+        :param multiline: If True, First line is title, rest is description. Tasks are separated by empty line.
+        :param checklists: If True, every line after title which starts with "*" is a checklist item for that task.
+        :param importer: If specified, use this importer to upload tasks. If not specified, then:
+            if multiple importers are available, command will fail. 
+            If none importer is available, command will fail.
+            If only one importer is available, it will be used.
+        :param parent: If specified, use this parent for all tasks. If not specified, use first found.
+        """
+        importer: Importer = self.get_importer(importer=importer)
+        available_parents = importer.list_projects()
+        if checklists:
+            # if using checklists, multiline behavior is assumed so we can safely turn it off
+            multiline = False
+        if parent != "" and parent not in available_parents:
+            print("Parent %s not found. Creating it." % parent)
+            importer.create_project(parent)
+        elif parent == "":
+            parent = available_parents[0]
+        if input == "":
+            input_f = sys.stdin
+        else:
+            input_f = open(input, "r")
+        if not multiline and not checklists:
+            for line in input_f:
+                line = line.strip()
+                if line == "":
+                    continue
+                if import_task(
+                    importer=importer,
+                    title=line,
+                    project=parent,
+                    unique=True,
+                ):
+                    print("Created ticket: %s" % line)
+        elif multiline and not checklists:
+            summary = ""
+            description = ""
+            for line in input_f:
+                line = line.strip()
+                if line == "":
+                    if summary != "":
+                        if import_task(
+                            importer=importer,
+                            title=summary,
+                            description=description,
+                            project=parent,
+                            unique=True,
+                        ):
+                            print("Created ticket: %s" % summary)
+                    summary = ""
+                    description = ""
+                elif summary == "":
+                    summary = line
+                else:
+                    description += line + "\n"
+            if summary != "":
+                if import_task(
+                    importer=importer,
+                    title=summary,
+                    description=description,
+                    project=parent,
+                    unique=True,
+                ):
+                    print("Created ticket: %s" % summary)
+        elif not multiline and checklists:
+            summary = ""
+            description = ""
+            checklists = []
+            for line in input_f:
+                line = line.strip()
+                if line == "":
+                    if summary != "":
+                        if import_task(
+                            importer=importer,
+                            title=summary,
+                            description=description,
+                            project=parent,
+                            checklist=checklists,
+                            unique=True,
+                        ):
+                            print("Created ticket: %s" % summary)
+                    summary = ""
+                    description = ""
+                    checklists = []
+                elif summary == "":
+                    summary = line
+                elif line.startswith("*"):
+                    checklists.append(line[1:].strip())
+                else:
+                    description += line + "\n"
+            if summary != "":
+                if import_task(
+                    importer=importer,
+                    title=summary,
+                    description=description,
+                    project=parent,
+                    checklist=checklists,
+                    unique=True,
+                ):
+                    print("Created ticket: %s" % summary)
+
+
+
     def usage(self):
         return """
         Usage: gtd COMMAND [ARGS]
