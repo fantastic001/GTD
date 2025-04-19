@@ -8,6 +8,15 @@ from gtd.style import *
 from gtd.extensions import load_extensions
 from gtd.importer import Importer
 
+try:
+    from fantastixus_ai import get_action_points, load_credentials
+except ImportError:
+    def get_action_points(prompt, apikey):
+        return []
+
+    def load_credentials():
+        return None
+
 def utc_to_this_tz(utc_time: str) -> datetime.datetime | None:
     current_utc_time = datetime.datetime.utcnow()
     current_time = datetime.datetime.now()
@@ -213,7 +222,18 @@ def generate_report():
             if len(cards) == 0:
                 continue
             result.append(section(mylist, level=1))
-            result.append(items([ticket(c) for c in cards]))
+            apikey = load_credentials()
+            for c in cards:
+                result.append(paragraph(ticket(c)))
+                task_description = "" 
+                task_description += "Title: %s\n" % c["name"]
+                task_description += "Description: %s\n" % c["desc"]
+                task_description += "Project: %s\n" % api.get_list_name(c)
+                suggestions = get_action_points(task_description, apikey)
+                if len(suggestions) > 0:
+                    result.append(items([s for s in suggestions]))
+                else:
+                    result.append(paragraph("No suggestions found"))
         
         number_closed_cards = len(api.get_closed_cards())
         days_passed = 1 + (datetime.datetime.now().date() - datetime.date(2025,1,5)).days
