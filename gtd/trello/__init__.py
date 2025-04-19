@@ -230,11 +230,14 @@ def generate_report():
                 task_description += "Description: %s\n" % c["desc"]
                 task_description += "Project: %s\n" % api.get_list_name(c)
                 suggestions = get_action_points(task_description, apikey)
+                checklist = api.add_checklist(c["id"], "Checklist")
+                
                 if len(suggestions) > 0:
                     result.append(items([s for s in suggestions]))
                 else:
                     result.append(paragraph("No suggestions found"))
-        
+                for s in suggestions:
+                    api.add_checklist_item(checklist["id"], s)
         number_closed_cards = len(api.get_closed_cards())
         days_passed = 1 + (datetime.datetime.now().date() - datetime.date(2025,1,5)).days
         result.append(section("Statistics"))
