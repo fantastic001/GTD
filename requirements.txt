@@ -7,3 +7,6 @@ trello
 tabulate
 markdown-it-py
 orgasm-package
+
+-e file:///data/Development/fantastixus-ai
+openai
