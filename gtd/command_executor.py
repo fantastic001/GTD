@@ -74,6 +74,13 @@ class CommandExecutor:
             return custom_report
         return ""
 
+    def projects(self, *, importer: str = ""):
+        """
+        Lists all projects available in the specified importer. If no importer is specified, it returns the first one found.
+        """
+        importer: Importer = self.get_importer(importer=importer)
+        return importer.list_projects()
+
     def get_importer(self, *, importer: str = "") -> Importer:
         """
         Returns the importer class specified by the user. If no importer is specified, it returns the first one found.
