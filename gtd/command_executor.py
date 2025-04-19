@@ -176,6 +176,9 @@ class CommandExecutor:
                     unique=True,
                 ):
                     print("Created ticket: %s" % line)
+                else:
+                    raise Exception("Error occurred while creating ticket: %s" % line)
+
         elif multiline and not checklists:
             summary = ""
             description = ""
@@ -206,6 +209,8 @@ class CommandExecutor:
                     unique=True,
                 ):
                     print("Created ticket: %s" % summary)
+                else:
+                    raise Exception("Error occurred while creating ticket: %s" % summary)
         elif not multiline and checklists:
             summary = ""
             description = ""
@@ -242,6 +247,8 @@ class CommandExecutor:
                     unique=True,
                 ):
                     print("Created ticket: %s" % summary)
+                else:
+                    raise Exception("Error occurred while creating ticket: %s" % summary)
 
 
 
