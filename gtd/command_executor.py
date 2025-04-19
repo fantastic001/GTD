@@ -18,13 +18,19 @@ from gtd.extensions import load_extensions
 def generate_report():
     return None 
 
+def get_jira_credentials():
+    return (
+        get_config_str("jira_username", "", "Username of jira user"),
+        get_config_str("jira_password", "", "Password of jira user")
+    )
+
 def get_jira_client():
+    url = get_config_str("jira_url", "", "URL of Jira instance")
+    if url == "":
+        return None 
     return jira.JIRA(
-        get_config_str("jira_url", "", "URL of Jira instance"), 
-        basic_auth=(
-            get_config_str("jira_username", "", "Username of jira user"), 
-            get_config_str("jira_password", "", "Password of jira user")
-        )
+        url, 
+        basic_auth=get_jira_credentials(),
     )
 
 ctrl = get_jira_client()
@@ -37,9 +43,20 @@ def tickets(l, extended=False):
 class CommandExecutor:
     MAX_DEADLINES_PER_DAY = 1
     def search(self, jql: str, expand: bool = False): 
+        if ctrl is None:
+            raise Exception("Jira client is not initialized")
         return ctrl.search_issues(jql, maxResults=None, expand=expand) 
     
     def graphql_call(self, query, **vars):
+        jira_graphql_url = get_config_str("jira_graphql_url", "", "URL of Jira GraphQL endpoint")
+        if jira_graphql_url == "":
+            raise Exception("Jira GraphQL URL is not set")
+        username, password = get_jira_credentials()
+        config = {
+            "url": jira_graphql_url,
+            "username": username,
+            "password": password
+        }
         response = requests.post(
             url=config["url"]+"/rest/graphql/1/", 
             auth=(config["username"], config["password"]), 
@@ -218,7 +235,8 @@ class CommandExecutor:
         # Context distribution 
         if get_config_bool("show_context_distribution", False, "Show context distribution"):
             result.append(section("Context distribution"))
-            result.append(table(self.get_context_distribution()))
+            if get_config_bool("show_context_distribution_table", False, "Show context distribution table"):
+                result.append(table(self.get_context_distribution()))
             result.append(paragraph("Legend: "))
             result.append(paragraph(green("Context in expected range.")))
             result.append(paragraph(yellow("Context is hot. Decrease number of tickets.")))
@@ -355,10 +373,12 @@ class CommandExecutor:
             else:
                 return blue("%.2f%%" % percentage, block=True)
     
-    def create_ticket(self, summary, context, duedate, *, parent: str = None, description = ""):
+    def create_ticket(self, summary, *, parent: str = "", description = "", context: str = "", duedate: str = ""):
         """
         Example: gtd create_ticket --summary "Test" --context "Work" --duedate "2021-10-10" --parent "GTD-1"
         """
+        if ctrl is None:
+            raise Exception("Jira client is not initialized")
         sample_task = self.search("filter = 'Tasks this month'")[0]
         if description is None or not isinstance(description, str):
             description = ""
@@ -367,11 +387,13 @@ class CommandExecutor:
             "summary": summary,
             "description": description,
             "issuetype": {"name": "Task"},
-            self.get_context_field(sample_task_key=sample_task.key)["key"]: {"value": context},
-            "duedate": duedate
         }
-        if parent is not None:
+        if parent:
             params["parent"] = {"key": parent}
+        if context:
+            params[self.get_context_field(sample_task_key=sample_task.key)["key"]] = {"value": context}
+        if duedate:
+            params["duedate"] = duedate
         ticket = ctrl.create_issue(fields=params)
         return ticket
     
