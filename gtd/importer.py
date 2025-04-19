@@ -61,7 +61,7 @@ def import_task(
     """
     if unique and importer.exists(title, description, due_date, context, project):
         print(f"Task '{title}' already exists.")
-        return False
+        return True
 
     try:
         importer.create(title, description, due_date, context, project, checklist)
