@@ -229,6 +229,8 @@ def generate_report():
                 task_description += "Title: %s\n" % c["name"]
                 task_description += "Description: %s\n" % c["desc"]
                 task_description += "Project: %s\n" % api.get_list_name(c)
+                task_description += "Action points should be doable in 30 minutes each.\n"
+                task_description += "Please provide a list of at most 7 action points.\n"
                 suggestions = get_action_points(task_description, apikey)
                 
                 if len(suggestions) > 0:
