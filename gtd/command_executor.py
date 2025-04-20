@@ -25,6 +25,12 @@ class CommandExecutor:
 
 
     def report(self):
+        """
+        Creates report of tasks and other information from plugins in HTML page. 
+
+        When called from CLI, HTML content is printed to stdout.
+        When called from Python, HTML content is returned as string.
+        """
         custom_report = generate_report()
         if custom_report is not None:
             return custom_report
@@ -212,19 +218,55 @@ class CommandExecutor:
         return """
         Usage: gtd COMMAND [ARGS]
         Commands:
-        - search
-        - report
-        - create_ticket
-        - import_csv
+        - report: Generates a report of tasks and other information from plugins in HTML page.
+        - projects: Lists all projects available in the specified importer. If no importer is specified, it returns the first one found.
+        - create_ticket: Creates a new ticket with the specified parameters.
+        - import_csv: Imports a csv file with the specified columns.
+        - upload: Uploads a batch of tasks in text specified.
+        
 
         For more information about a command, use gtd COMMAND --help
         """
     def examples(self):
         return """
         Examples:
-        - gtd search --jql "filter = 'Tasks this month'"
         - gtd report
         - gtd create_ticket --summary "Test" --context "Work" --duedate "2021-10-10" --parent "GTD-1"
         - gtd import_csv --path tasks.csv
+
+        Importing:
+
+        If you have file with this content:
+        Task 1
+        Task 2
+        Task 3
+
+        You can import it with:
+        gtd upload --input tasks.txt
+
+        If you have file with this content:
+        Task 1
+        Description
+
+        Task 2
+        Description
+
+        You can import it with:
+        gtd upload --input tasks.txt --multiline
+
+        If you have file with this content:
+
+        Task 1
+        Description
+        * Checklist item 1
+        * Checklist item 2
+
+        Task 2
+        Description
+        * Checklist item 1
+        * Checklist item 2
+
+        You can import it with:
+        gtd upload --input tasks.txt --checklists
         """
     
