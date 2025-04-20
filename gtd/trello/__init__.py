@@ -186,6 +186,7 @@ class TrelloAPI:
 
 def generate_report():
     result = [] 
+    this_week_label = get_config_str("trello_this_week_label", "This week", "Label Used in tasks in Trello to mark tasks for this week")
     result.append("<!DOCTYPE html>")
     result.append("<html>")
     result.append("<head>")
@@ -198,7 +199,7 @@ def generate_report():
         api = TrelloAPI()
         backlog = api.get_lists()
         open_cards = api.get_open_cards()
-        this_week = [c for c in api.get_open_cards() if "This week" in [l["name"] for l in c["labels"]]]
+        this_week = [c for c in api.get_open_cards() if this_week_label in [l["name"] for l in c["labels"]]]
 
         card_to_list = {}
         for c in this_week:
@@ -240,8 +241,25 @@ def generate_report():
                         api.add_checklist_item(checklist["id"], s)
                 else:
                     result.append(paragraph("No suggestions found"))
-        number_closed_cards = len(api.get_closed_cards())
-        days_passed = 1 + (datetime.datetime.now().date() - datetime.date(2025,1,5)).days
+        closed_cards = api.get_closed_cards()
+        number_closed_cards = len(closed_cards)
+        # first day is day when we created first card
+
+        first_day = None
+        for c in open_cards + closed_cards:
+            if first_day is None:
+                first_day = datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date()
+            else:
+                if datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() < first_day:
+                    first_day = datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date()
+        if first_day is None:
+            first_day = datetime.datetime.now().date()
+        if number_closed_cards == 0:
+            result.append(paragraph("No cards closed yet. Please close some cards to see statistics."))
+            return "\n".join(result)
+        days_passed = 1 + (datetime.datetime.now().date() - first_day).days
+        if days_passed == 0:
+            days_passed = 1
         result.append(section("Statistics"))
         result.append(paragraph("Average cards closed per day: %.2f" % (number_closed_cards / days_passed)))
         start_of_week = datetime.datetime.now() - datetime.timedelta(days=datetime.datetime.now().weekday())
