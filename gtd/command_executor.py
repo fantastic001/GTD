@@ -22,51 +22,7 @@ def generate_report():
 
 
 class CommandExecutor:
-    
-    def retro(self, * ,use_html: bool = False):
-        tasks: list[Issue] = self.search("filter = 'weekly retro'")
-        epics = [task.raw.get("fields", {}).get("parent", {}).get("fields", {}).get("summary", "") for task in tasks]
-        NON_PROJECT_EPIC_SUMMARY = "Non-project related tasks"
-        epics.append(NON_PROJECT_EPIC_SUMMARY)
-        epics = set(epics)
-        result = [] 
-        epic_to_tasks = {}
-        for epic in epics:
-            if epic == "":
-                epic = NON_PROJECT_EPIC_SUMMARY
-            epic_to_tasks[epic] = [] 
-        for task in tasks:
-            epic_summary = task.raw.get("fields", {}).get("parent", {}).get("fields", {}).get("summary", "")
-            if epic_summary == "":
-                epic_summary = NON_PROJECT_EPIC_SUMMARY
-            epic_to_tasks[epic_summary].append(task)
-        for epic, tasks_in_epic in epic_to_tasks.items():
-            if epic == "":
-                epic = NON_PROJECT_EPIC_SUMMARY
-            if len(tasks_in_epic) == 0:
-                continue
-            if use_html:
-                result.append(section(epic, level=1))
-            else:
-                result.append("* %s" % epic)
-                result.append("")
-            if use_html:
-                result.append(tickets(tasks_in_epic, extended=True))
-            else:
-                for task in tasks_in_epic:
-                    result.append("+ %s " % task.fields.summary)
-                result.append("")
-        if use_html:
-            result.append(section("Statistics", level=1))
-            result.append(paragraph("Number of Finished tasks: %d" % len(tasks)))
-            result.append(paragraph("Number of Finished tasks without project: %d" % len(epic_to_tasks[NON_PROJECT_EPIC_SUMMARY])))
-        else:
-            result.append("* Statistics")
-            result.append("")
-            result.append("+ Number of Finished tasks: %d" % len(tasks))
-            result.append("+ Number of Finished tasks without project: %d" % len(epic_to_tasks[NON_PROJECT_EPIC_SUMMARY]))        
-        return result
-            
+
 
     def report(self):
         custom_report = generate_report()
