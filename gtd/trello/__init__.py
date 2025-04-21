@@ -265,8 +265,10 @@ def generate_report():
         start_of_week = datetime.datetime.now() - datetime.timedelta(days=datetime.datetime.now().weekday())
         start_of_week = start_of_week.date()
         result.append(paragraph("Number of open cards: %d" % len(api.get_open_cards())))
-        result.append(paragraph("Remaining days in year: %d" % (365 - days_passed)))
-        result.append(paragraph("Required closed tasks per day: %.2f" % ((len(api.get_open_cards())) / (365 - days_passed))))
+        today = datetime.datetime.now().date()
+        remaining_days = 1 + (datetime.date(today.year, 12, 31) - today).days
+        result.append(paragraph("Remaining days in year: %d" % remaining_days))
+        result.append(paragraph("Required closed tasks per day: %.2f" % ((len(api.get_open_cards())) / remaining_days)))
         result.append(paragraph("Start of week: %s" % start_of_week))
         result.append(
             paragraph(
