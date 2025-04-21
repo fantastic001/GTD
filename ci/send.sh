@@ -45,14 +45,28 @@ resolve_mutt_var() {
     echo "$value"
 }
 
+ATTACHMENTS_DIR=~/.gtd/attachments
+mkdir -p $ATTACHMENTS_DIR
+
+rename_and_echo() {
+    newname=$(echo $1 | sed "s/ /_/g")
+    mv "$1" $newname
+    echo "$newname"
+}
+
+find $ATTACHMENTS_DIR -type f -name "*.html" | while read file; do
+    rename_and_echo "$file"
+done
 # Example usage
 my_email=$(resolve_mutt_var "from")
 echo "Resolved email: $my_email"
-
 
 
 echo "In attachment you can find report for GTD
 
 This email is sent from $(curl https://jsonip.com | jq ".ip")
 
-" | mutt -s "GTD report" $my_email -a report.html
+" | mutt -s "GTD report" -a report.html -a $ATTACHMENTS_DIR/* -- $my_email
+
+
+rm -rf $ATTACHMENTS_DIR/*
