@@ -6,7 +6,7 @@ import datetime
 from gtd.style import section, table, paragraph, items
 import os 
 from markdown_it import MarkdownIt
-
+import hashlib
 
 def add_extensions(report: Report):
     """
@@ -16,7 +16,7 @@ def add_extensions(report: Report):
     notes_path = os.path.expanduser(notes_path)
     year, week = datetime.datetime.now().isocalendar()[:2]
     n = year * 100 + week
-    n = hash(n)
+    n = int.from_bytes(hashlib.md5(n.to_bytes(4, "big", signed=False)).digest()[:4], "big", signed=False)
     readme_files = [] 
     for root, dirs, files in os.walk(notes_path):
         for file in files:
