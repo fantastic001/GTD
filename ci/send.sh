@@ -62,11 +62,21 @@ my_email=$(resolve_mutt_var "from")
 echo "Resolved email: $my_email"
 
 
-echo "In attachment you can find report for GTD
+content="In attachment you can find report for GTD
 
 This email is sent from $(curl https://jsonip.com | jq ".ip")
 
-" | mutt -s "GTD report" -a report.html -a $ATTACHMENTS_DIR/* -- $my_email
+" 
+
+# do not attach files in attachments if directory is empty
+if [ -z "$(ls $ATTACHMENTS_DIR/)" ]; then
+    echo "No attachments found in $ATTACHMENTS_DIR"
+    echo "$content" | mutt -s "GTD report" -a report.html -- $my_email
+else
+    echo "Attachments found in $ATTACHMENTS_DIR"
+    echo "$content" | mutt -s "GTD report" -a report.html -a $ATTACHMENTS_DIR/* -- $my_email
+fi
+
 
 
 rm -rf $ATTACHMENTS_DIR/*
