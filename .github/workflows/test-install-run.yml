@@ -32,3 +32,8 @@ jobs:
     - name: Check if `gtd` command works
       run: |
         gtd --help
+
+    - name: Check if importers works
+      run: |
+        export GTD_PLUGINS=gtd.trello
+        gtd get_importer | grep -q "gtd.trello"
