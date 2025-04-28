@@ -9,6 +9,8 @@ def generate_report():
     return None 
 class CommandExecutor:
 
+    def importers(self):
+        return get_classes_inheriting(Importer)
 
     def report(self):
         """
@@ -33,7 +35,7 @@ class CommandExecutor:
         """
         Returns the importer class specified by the user. If no importer is specified, it returns the first one found.
         """
-        importers = get_classes_inheriting(Importer)
+        importers = self.importers()
         if len(importers) == 0:
             raise Exception("No importers available")
         elif len(importers) > 1 and importer == "":

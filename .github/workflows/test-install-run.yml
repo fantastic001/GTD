@@ -36,4 +36,4 @@ jobs:
     - name: Check if importers works
       run: |
         export GTD_PLUGINS=gtd.trello
-        gtd get_importer | grep -q "gtd.trello"
+        gtd importers | grep -q "gtd.trello"
