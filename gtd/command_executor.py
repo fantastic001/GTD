@@ -1,26 +1,12 @@
-from dataclasses import asdict, field, fields
-import datetime
-from typing import Any
-from urllib.parse import non_hierarchical
 import pandas as pd 
-import jira
-import json 
-import os
-import requests 
-from gtd.drive import Spreadsheet
 from gtd.config import * 
-from jira.resources import Issue 
 from gtd.style import * 
-from gtd.extensions import load_extensions
 from gtd.config import get_classes_inheriting
 from gtd.importer import Importer, import_task
 
 @pluggable
 def generate_report():
     return None 
-
-
-
 class CommandExecutor:
 
 
