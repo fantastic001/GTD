@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gtd"
+version = "1.0"
+description = "GTD tool which uses JIRA as a backend and allows you to manage your tasks in a GTD way"
+authors = [
+    { name="Stefan Nožinić", email="stefan@lugons.org" }
+]
+dependencies = [
+    "jira",
+    "pandas",
+    "requests",
+    "odfpy",
+    "lxml",
+    "trello",
+    "tabulate",
+    "markdown-it-py",
+    "orgasm-package",
+    "mdit_py_plugins"
+]
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.scripts]
+gtd = "gtd.__main__:main"
