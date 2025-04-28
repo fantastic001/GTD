@@ -20,7 +20,7 @@ except ImportError:
         return None
     ai_enabled = False
 
-def utc_to_this_tz(utc_time: str) -> datetime.datetime | None:
+def utc_to_this_tz(utc_time: str) -> datetime.datetime:
     current_utc_time = datetime.datetime.utcnow()
     current_time = datetime.datetime.now()
     dt = current_time - current_utc_time
