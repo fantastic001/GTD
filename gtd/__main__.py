@@ -15,8 +15,11 @@ def pretty_print(obj):
     else:
         print(obj)
 
-if __name__ == "__main__":
+def main():
     command_executor_main(
         CommandExecutor,
         explicit_params=False
     )
+
+if __name__ == "__main__":
+    main()
