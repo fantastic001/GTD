@@ -3,7 +3,7 @@ from gtd.extensions import Report
 from gtd.config import get_config_str, get_config_bool
 from gtd.drive import Spreadsheet
 import datetime
-from gtd.style import section, table, paragraph, items
+from gtd.style import section, table, paragraph, items, green, red
 
 def add_extensions(report: Report):
     """
@@ -23,10 +23,17 @@ def add_extensions(report: Report):
     if df is None:
         return
     report.add(section("Maintenance"))
+    total = len(df)
     df[last_maintenance_column] = df[last_maintenance_column].apply(pd.to_datetime)
     df[frequency_column] = df[frequency_column].apply(int)
     df[frequency_column] = df[frequency_column].apply(lambda x: datetime.timedelta(days=x))
     df = df[df[last_maintenance_column] + df[frequency_column] < datetime.datetime.now()]
+    needs_maintenance = len(df)
+    ratio = needs_maintenance / total
+    if ratio >= 0.2:
+        report.add(paragraph("Maintenance percentage: " + red(f"{1-ratio:.0%}")))
+    else:
+        report.add(paragraph("Maintenance percentage: " + green(f"{1-ratio:.0%}")))
     if df.empty:
         report.add(paragraph("No maintenance required"))
         return
