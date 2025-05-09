@@ -9,6 +9,7 @@ def add_extensions(report: Report):
     """
     Reads table for maintenance and adds items with unmaintained items
     """
+    report.add(section("Maintenance"))
     import pandas as pd 
     maintenance_file_path = get_config_str("maintenance_file", "", "Path to the maintenance file")
     sheet_name = get_config_str("maintenance_sheet", "maintenance", "Sheet name in the maintenance file")
@@ -22,7 +23,6 @@ def add_extensions(report: Report):
     df = maintenance.open_pandas(sheet_name)
     if df is None:
         return
-    report.add(section("Maintenance"))
     total = len(df)
     df[last_maintenance_column] = df[last_maintenance_column].apply(pd.to_datetime)
     df[frequency_column] = df[frequency_column].apply(int)

@@ -9,6 +9,7 @@ def add_extensions(report: Report):
     """
     Reads meals from ods file stored locally and returns a schedule for the next 7 days
     """
+    report.add(section("Meals"))
     import pandas as pd 
     meals = ["Breakfast", "Lunch", "Dinner", "Snack"]
     meal_file_path = get_config_str("meals", "", "Path to meals file")
