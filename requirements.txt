@@ -9,5 +9,5 @@ markdown-it-py
 orgasm-package
 mdit_py_plugins
 
--e file:///data/Development/fantastixus-ai
-openai
+#-e file:///data/Development/fantastixus-ai
+#openai
