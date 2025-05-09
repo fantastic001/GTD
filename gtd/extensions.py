@@ -2,7 +2,7 @@
 from  gtd.config import get_symbols_satisfying
 from multiprocessing import Pool
 
-from gtd.style import paragraph, red
+from gtd.style import error, paragraph, red
 class Report:
     def __init__(self) -> None:
         self.elements = [] 
@@ -24,7 +24,7 @@ def get_report(ext):
         ext(report)
         return report
     except Exception as e:
-        report.add(paragraph(red("Error in extension: " + str(e))))
+        report.add(paragraph(error("Error in extension: " + str(e))))
         return report
 def load_extensions() -> list:
     extension_creators = get_symbols_satisfying(is_extension)

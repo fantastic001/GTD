@@ -59,3 +59,6 @@ def paragraph(text):
 
 def table(table_records):
     return pd.DataFrame(table_records).to_html(index=False, escape=False)
+
+def error(text):
+    return "<div style=\"color: red; background-color: yellow; padding: 5px;\">ERROR: %s</div>" % text

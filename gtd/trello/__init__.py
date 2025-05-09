@@ -432,7 +432,7 @@ def generate_report():
 
         result += load_extensions()
     except ValueError as e:
-        result.append(paragraph("Error: %s" % e))
+        result.append(error("%s" % e))
     result.append("</body>")
     result.append("</html>")
     if ai_enabled:
