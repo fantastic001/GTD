@@ -1,27 +1,36 @@
-on: 
-  push:
-    branches:
-      - master
-jobs:
-  example-job:
-    runs-on: ubuntu-latest
-    container: archlinux
-    steps:
-    - name: Checkout repository 
-      uses: actions/checkout@v4
-    - name: Install dependencies 
-      run: pacman -Syy && ./ci/install.sh 
-    - name: Generate reports
-      run: ./ci/build.sh
-    - name: Send email 
-      run: ./ci/send.sh 
-      env:
-        my_realname: ${{ secrets.realname }}
-        my_email: ${{ secrets.email }}
-        my_smtp: ${{ secrets.smtp }}
-        my_user: ${{ secrets.username }}
-        my_pass: ${{ secrets.password }}
-        my_jira_url: ${{ secrets.jira_url }}
-        my_jira_username: ${{ secrets.jira_username }}
-        my_jira_password: ${{ secrets.jira_password }}
+name: Test suite
 
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: [ '3.9', '3.10', '3.11' ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # install project in editable mode if there’s a pyproject or setup.py
+          if [ -f pyproject.toml ] || [ -f setup.py ]; then pip install -e .; fi
+          # optional: install explicit test/development requirements
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+
+      - name: 🧪 Run unit tests
+        run: python -m gtd.test
