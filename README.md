@@ -6,6 +6,7 @@
   - [Creating tasks with only title](#creating-tasks-with-only-title)
   - [Adding tasks with description and checklists](#adding-tasks-with-description-and-checklists)
 - [Configuration reference](#configuration-reference)
+- [Writing extensions for GTD](#writing-extensions-for-gtd)
 
 
 
@@ -171,3 +172,41 @@ And you will see your fucking tasks in your fucking board.
 | plugin_search_path              | list   | ["'/usr/local/share/' + PROJECT_NAME + '/plugins'", "'/usr/share/' + PROJECT_NAME + '/plugins'", "os.path.join(os.path.expanduser('~'), '.' + PROJECT_NAME, 'plugins')", "os.path.join(os.path.expanduser('~'), '.local', 'share', PROJECT_NAME, 'plugins')", 'os.getcwd()'] | List of plugin search paths                               |
 | disabled_plugins                | list   | []                                                                                                                                                                                                                                                                           | List of plugins to disable                                |
 | plugins                         | list   | []                                                                                                                                                                                                                                                                           | List of plugins to load                                   |
+
+
+# Writing extensions for GTD
+
+You can write extensions for GTD which will be added to final report. 
+
+You can need to create plugin for GTD.
+
+Create Python file or module inside `~/.gtd/plugins/`, for instance:
+
+```bash 
+
+vim ~/.gtd/plugins/myplugin.py
+
+```
+
+and add the following:
+
+```python
+
+from gtd.extensions import Report
+from gtd.config import get_config_str, get_config_bool
+from gtd.drive import Spreadsheet
+import datetime
+from gtd.style import section, table
+
+def add_extensions(report: Report):
+    """
+    This is my extension
+    """
+    report.add(section("My extension"))
+    report.add(paragraph("Hello GTD"))
+        
+
+
+```
+
+That's it! Now you will see new content generated from your extension in your report.
