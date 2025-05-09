@@ -7,7 +7,7 @@ from gtd.config import get_config_str
 from gtd.style import *
 from gtd.extensions import load_extensions
 from gtd.importer import Importer
-
+from gtd.utils import ExponentialBackoff
 ai_enabled = True
 
 try:
@@ -35,6 +35,8 @@ def CheckField(field):
 
 def NotCheckField(field):
     return lambda c: not CheckField(field)(c)
+
+backoff = ExponentialBackoff(base_delay=1, max_delay=60, max_retries=5)
 
 class TrelloAPI:
     def __init__(self, apikey=None, token=None) -> None:
@@ -68,13 +70,15 @@ class TrelloAPI:
             raise ValueError("Error setting Trello token: %s" % e)
         self.api = api
 
+    @backoff
     def get_boards(self):
         try:
             return self.api.members.get_board('me')
         except Exception as e:
             print("Error getting boards: %s" % e)
             raise ValueError("Error getting boards")
-
+    
+    @backoff
     def get_board(self, board_name=None):
         if board_name is None:
             board_name = self.get_default_board()
@@ -85,6 +89,7 @@ class TrelloAPI:
         except KeyError:
             raise ValueError("Key 'name' not found in board, API probably changed")
 
+    @backoff
     def get_default_board(self):
         """
         Get the default board name from the configuration file.
@@ -99,6 +104,7 @@ class TrelloAPI:
         return board_name
 
 
+    @backoff
     def get_lists(self, board_name=None):
         if board_name is None:
             board_name = self.get_default_board()
@@ -109,6 +115,7 @@ class TrelloAPI:
             print("Error getting lists: %s" % e)
             raise ValueError("Error getting lists")
 
+    @backoff
     def get_open_cards(self, board_name=None):
         if board_name is None:
             board_name = self.get_default_board()
@@ -119,6 +126,7 @@ class TrelloAPI:
             print("Error getting cards: %s" % e)
             raise ValueError("Error getting cards")
 
+    @backoff
     def get_closed_cards(self, board_name=None):
         if board_name is None:
             board_name = self.get_default_board()
@@ -129,6 +137,7 @@ class TrelloAPI:
             print("Error getting cards: %s" % e)
             raise ValueError("Error getting cards")
 
+    @backoff
     def get_closed_lists(self, board_name=None):
         if board_name is None:
             board_name = self.get_default_board()
@@ -139,6 +148,7 @@ class TrelloAPI:
             print("Error getting lists: %s" % e)
             raise ValueError("Error getting lists")
     
+    @backoff
     def get_list_name(self, card):
         try:
             return self.api.lists.get(card['idList'])['name']
@@ -148,6 +158,7 @@ class TrelloAPI:
             print("Error getting list name: %s" % e)
             raise ValueError("Error getting list name")
     
+    @backoff
     def get_checklist(self, card):
         try:
             return self.api.checklists.get(card['idChecklists'][0])
@@ -157,6 +168,7 @@ class TrelloAPI:
             print("Error getting checklist: %s" % e)
             raise ValueError("Error getting checklist")
     
+    @backoff
     def add_list(self, name, board_name=None):
         if board_name is None:
             board_name = self.get_default_board()
@@ -166,18 +178,21 @@ class TrelloAPI:
         except Exception as e:
             print("Error creating list: %s" % e)
             raise ValueError("Error creating list")
+    @backoff
     def add_card(self, name, list_id, desc=None, due=None):
         try:
             return self.api.cards.new(name, list_id, desc=desc, due=due)
         except Exception as e:
             print("Error creating card: %s" % e)
             raise ValueError("Error creating card")
+    @backoff
     def add_checklist(self, card_id, name):
         try:
             return self.api.checklists.new(card_id, name)
         except Exception as e:
             print("Error creating checklist: %s" % e)
             raise ValueError("Error creating checklist")
+    @backoff
     def add_checklist_item(self, checklist_id, name):
         try:
             return self.api.checklists.new_checkItem(checklist_id, name)
@@ -185,6 +200,7 @@ class TrelloAPI:
             print("Error creating checklist item: %s" % e)
             raise ValueError("Error creating checklist item")
     
+    @backoff
     def has_label(self, card, label_name):
         try:
             return any(l['name'] == label_name for l in card['labels'])
@@ -193,6 +209,7 @@ class TrelloAPI:
         except Exception as e:
             print("Error checking label: %s" % e)
             raise ValueError("Error checking label")
+    @backoff
     def remove_label(self, card, label_name):
         """
         Removes label from given card.
@@ -208,6 +225,7 @@ class TrelloAPI:
             print("Error removing label: %s" % e)
             raise ValueError("Error removing label")
     
+    @backoff
     def get_comments(self, card):
         """
         Returns comments from given card.
@@ -220,6 +238,7 @@ class TrelloAPI:
             print("Error getting comments: %s" % e)
             raise ValueError("Error getting comments")
 
+    @backoff
     def attach(self, card, title, markdown_content):
         """
         Attaches HTML to given card.
@@ -299,7 +318,7 @@ def generate_report():
         api = TrelloAPI()
         backlog = api.get_lists()
         open_cards = api.get_open_cards()
-        this_week = [c for c in api.get_open_cards() if this_week_label in [l["name"] for l in c["labels"]]]
+        this_week = [c for c in open_cards if this_week_label in [l["name"] for l in c["labels"]]]
 
         card_to_list = {}
         for c in this_week:
@@ -364,28 +383,28 @@ def generate_report():
         result.append(paragraph("Average cards closed per day: %.2f" % (number_closed_cards / days_passed)))
         start_of_week = datetime.datetime.now() - datetime.timedelta(days=datetime.datetime.now().weekday())
         start_of_week = start_of_week.date()
-        result.append(paragraph("Number of open cards: %d" % len(api.get_open_cards())))
+        result.append(paragraph("Number of open cards: %d" % len(open_cards)))
         today = datetime.datetime.now().date()
         remaining_days = 1 + (datetime.date(today.year, 12, 31) - today).days
         result.append(paragraph("Remaining days in year: %d" % remaining_days))
-        result.append(paragraph("Required closed tasks per day: %.2f" % ((len(api.get_open_cards())) / remaining_days)))
+        result.append(paragraph("Required closed tasks per day: %.2f" % ((len(open_cards)) / remaining_days)))
         result.append(paragraph("Start of week: %s" % start_of_week))
         result.append(
             paragraph(
                 "If you continue with this closing rate, all tasks will be closed by %s" % (
-                    (datetime.datetime.now().date() + datetime.timedelta(days=(len(api.get_open_cards()) / (number_closed_cards / days_passed)))).strftime("%Y-%m-%d")
+                    (datetime.datetime.now().date() + datetime.timedelta(days=(len(open_cards) / (number_closed_cards / days_passed)))).strftime("%Y-%m-%d")
                 )
             )
         )
         result.append(
             paragraph(
                 "If you continue with closing rate 1 per day, all tasks will be closed by %s" % (
-                    (datetime.datetime.now().date() + datetime.timedelta(days=(len(api.get_open_cards())))).strftime("%Y-%m-%d")
+                    (datetime.datetime.now().date() + datetime.timedelta(days=(len(open_cards)))).strftime("%Y-%m-%d")
                 )
             )
         )
         
-        closed_this_week = list([c for c in api.get_closed_cards() if datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() >= start_of_week])
+        closed_this_week = list([c for c in closed_cards if datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() >= start_of_week])
         list_to_closed_cards = {}
         for c in closed_this_week:
             list_name = api.get_list_name(c)
