@@ -1,3 +1,4 @@
+import datetime
 import pandas as pd 
 from gtd.config import * 
 from gtd.style import * 
@@ -7,6 +8,10 @@ from gtd.importer import Importer, import_task
 @pluggable
 def generate_report():
     return None 
+
+@pluggable
+def generate_retro_report(year, week):
+    return None
 class CommandExecutor:
 
     def importers(self):
@@ -20,6 +25,17 @@ class CommandExecutor:
         When called from Python, HTML content is returned as string.
         """
         custom_report = generate_report()
+        if custom_report is not None:
+            return custom_report
+        return ""
+
+    def retro(self, week: int, *, year: int = 0):
+        """
+        Generates a report of tasks and other information from plugins in HTML page for the specified calendar week.
+        """
+        if year == 0:
+            year = datetime.datetime.now().year
+        custom_report = generate_retro_report(year, week)
         if custom_report is not None:
             return custom_report
         return ""

@@ -517,3 +517,50 @@ class TrelloImporter(Importer):
             if card["name"] == title and card["idList"] == list_id:
                 return True
         return False
+
+def generate_retro_report(year, week):
+    """
+    Week is specified as calendar week, starting from 1.
+
+    :param year: Year number
+    :param week: Week number
+    :return: HTML report
+    """
+    
+    week_first_day = datetime.datetime.strptime(f"{year}-W{week}-1", "%Y-W%W-%w").date()
+    week_last_day = datetime.datetime.strptime(f"{year}-W{week}-0", "%Y-W%W-%w").date()
+    result = [] 
+    result.append("<!DOCTYPE html>")
+    result.append("<html>")
+    result.append("<head>")
+    result.append("<meta charset='utf-8'>")
+    result.append("</head>")
+
+    result.append("<body>")
+    result.append("<h1>Trello Report</h1>")
+    try:
+        api = TrelloAPI()
+        closed_cards = api.get_closed_cards()
+
+        this_week = [c for c in closed_cards if datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() >= week_first_day and datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() <= week_last_day]
+        card_to_list = {}
+        for c in this_week:
+            list_name = api.get_list_name(c)
+            if list_name not in card_to_list:
+                card_to_list[list_name] = []
+            card_to_list[list_name].append(c)
+
+        result.append(section("Closed cards per list"))
+        for mylist, cards in card_to_list.items():
+            result.append(section(mylist, level=1))
+            result.append(items([ticket(c) for c in cards]))
+        result.append(section("Statistics"))
+        number_closed_cards = len(closed_cards)
+        result.append(paragraph("First day of week: %s" % week_first_day))
+        result.append(paragraph("Last day of week: %s" % week_last_day))
+        result.append(paragraph("Closed cards this week: %d" % len(this_week)))
+    except Exception as e:
+        result.append(error("%s" % e))
+    result.append("</body>")
+    result.append("</html>")
+    return result
