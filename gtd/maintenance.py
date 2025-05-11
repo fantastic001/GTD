@@ -30,7 +30,7 @@ def add_extensions(report: Report):
     df = df[df[last_maintenance_column] + df[frequency_column] < datetime.datetime.now()]
     needs_maintenance = len(df)
     ratio = needs_maintenance / total
-    if ratio >= 0.2:
+    if ratio > 0.2:
         report.add(paragraph("Maintenance percentage: " + red(f"{1-ratio:.0%}")))
     else:
         report.add(paragraph("Maintenance percentage: " + green(f"{1-ratio:.0%}")))
