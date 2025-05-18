@@ -14,7 +14,7 @@ class Report:
         return self.elements
 
 def _extension_result_key(report):
-    return report.get_elements()[0]
+    return report.get_elements()[0] if report.get_elements() else ""
 
 def is_extension(obj):
     return hasattr(obj, "__name__") and obj.__name__ == "add_extensions" and callable(obj)
