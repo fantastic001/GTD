@@ -218,6 +218,68 @@ class CommandExecutor:
 
 
 
+    def import_server(self, projectdir: str, *, notify_fifo: str = "", pidfile: str = "", importer: str = ""):
+        """
+        Runs the server waiting for WAKEUP message on the specified FIFO. When received, it imports tasks from the specified project directory using the specified importer. Project directory contains files where each file is named for project and contains tasks in the following format:
+        Task 1
+        Task 2
+        ...
+
+
+        :param notify_fifo: Path to the FIFO file to listen for WAKEUP messages.
+        :param project_dir: Path to the directory containing project files.
+        :param pidfile: Path to the file where the PID of the process will be stored. If not specified, default from config is used.
+        :param importer: If specified, use this importer to upload tasks. If not specified, then:
+            if multiple importers are available, command will fail. 
+            If none importer is available, command will fail.
+            If only one importer is available, it will be used.
+
+        """
+        if notify_fifo == "":
+            notify_fifo = get_config_str("import_server_notify_fifo", "/tmp/gtd_import_server_fifo", "FIFO file for import server")
+        if pidfile == "":
+            pidfile = get_config_str("import_server_pidfile", "/tmp/gtd_import_server.pid", "PID file for import server")
+        if os.path.exists(pidfile):
+            with open(pidfile, "r") as f:
+                pid = f.read().strip()
+                try:
+                    if pid.isdigit() and os.kill(int(pid), 0) == 0:
+                        raise Exception("Import server is already running with PID %s. Please stop it first." % pid)
+                except ProcessLookupError:
+                    print("Import server PID file exists, but process %s does not exist. Removing PID file." % pid)
+                    os.remove(pidfile)
+        if not os.path.exists(notify_fifo):
+            raise Exception("FIFO %s does not exist. Please create it." % notify_fifo)
+        if not os.path.exists(projectdir):
+            raise Exception("Project directory %s does not exist. Please create it." % projectdir)
+        importer: Importer = self.get_importer(importer=importer)
+        with open(pidfile, "w") as f:
+            f.write(str(os.getpid()))
+        while True:
+            with open(notify_fifo, "r") as fifo:
+                message = fifo.read()
+                if message.strip() == "WAKEUP":
+                    print("Received WAKEUP message. Importing tasks from %s" % projectdir)
+                    for filename in os.listdir(projectdir):
+                        if filename.endswith(".txt"):
+                            failed = False
+                            with open(os.path.join(projectdir, filename), "r") as f:
+                                tasks = f.read().strip().split("\n")
+                                for task in tasks:
+                                    if not import_task(
+                                        importer=importer,
+                                        title=task,
+                                        project=filename[:-4],  # remove .txt extension
+                                        unique=True,
+                                    ):
+                                        print("Error occurred while creating ticket: %s" % task)
+                                        failed = True
+                            if not failed:
+                                print("Imported %d tasks from %s" % (len(tasks), filename))
+                                os.remove(os.path.join(projectdir, filename))
+
+
+
     def usage(self):
         return """
         Usage: gtd COMMAND [ARGS]
