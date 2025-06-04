@@ -511,7 +511,9 @@ class TrelloImporter(Importer):
         """
         if project is None:
             project = self.list_projects()[0]
-        list_id = next(l for l in self.api.get_lists() if l["name"] == project)["id"]
+        list_id = next(iter([l for l in self.api.get_lists() if l["name"] == project]), {"id": None})["id"]
+        if list_id is None:
+            return False 
         cards = self.api.get_open_cards()
         for card in cards:
             if card["name"] == title and card["idList"] == list_id:
