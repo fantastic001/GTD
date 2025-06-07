@@ -1,4 +1,5 @@
 
+from gtd.config import get_config_str
 from gtd.trello import TrelloAPI, ai_help
 import sys 
 import json
@@ -7,14 +8,23 @@ import json
 api = TrelloAPI()
 
 if sys.argv[1] == "backup":
-    cards = api.get_open_cards("Backlog")
-    closed_cards = api.get_closed_cards("Backlog")
+    backlog = api.get_default_board()
+    cards = api.get_open_cards(backlog)
+    closed_cards = api.get_closed_cards(backlog)
     backup_file = sys.argv[2]
     with open(backup_file, "w") as f:
         json.dump({
-            "open_cards": cards,
+            "open_cards": [
+                {
+                    "checklist": api.get_checklist(card),
+                    **card,
+                } for card in cards
+            ],
             "closed_cards": closed_cards
         }, f)
+elif sys.argv[1] == "list":
+    for board in api.get_boards():
+        print(f"{board['name']} ({board['id']})")
 elif sys.argv[1] == "ai":
     this_week_label = "This week"
     cards = [c for c in api.get_open_cards() if this_week_label in [l["name"] for l in c["labels"]]]
