@@ -161,6 +161,8 @@ class TrelloAPI:
     @backoff
     def get_checklist(self, card):
         try:
+            if len(card['idChecklists']) == 0:
+                return None
             return self.api.checklists.get(card['idChecklists'][0])
         except KeyError:
             raise ValueError("Key 'idChecklists' not found in card, API probably changed, data: %s" % card)
