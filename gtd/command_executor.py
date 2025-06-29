@@ -1,9 +1,14 @@
 import datetime
 import pandas as pd 
 from gtd.config import * 
+from gtd.extensions import ReportService
 from gtd.style import * 
 from gtd.config import get_classes_inheriting
 from gtd.importer import Importer, import_task
+from orgasm.http_rest import http_auth_json_file, http_get, no_http
+from orgasm.http_rest import issue_token, json_save_to_db
+
+TOKEN_FILE = get_config_str("token_file", "tokens.json", "Path to the file with tokens")
 
 @pluggable
 def generate_report():
@@ -14,9 +19,11 @@ def generate_retro_report(year, week):
     return None
 class CommandExecutor:
 
+    @no_http
     def importers(self):
         return get_classes_inheriting(Importer)
 
+    @no_http
     def report(self):
         """
         Creates report of tasks and other information from plugins in HTML page. 
@@ -29,6 +36,7 @@ class CommandExecutor:
             return custom_report
         return ""
 
+    @no_http
     def retro(self, week: int, *, year: int = 0):
         """
         Generates a report of tasks and other information from plugins in HTML page for the specified calendar week.
@@ -40,6 +48,7 @@ class CommandExecutor:
             return custom_report
         return ""
 
+    @no_http
     def projects(self, *, importer: str = ""):
         """
         Lists all projects available in the specified importer. If no importer is specified, it returns the first one found.
@@ -47,6 +56,7 @@ class CommandExecutor:
         importer: Importer = self.get_importer(importer=importer)
         return importer.list_projects()
 
+    @no_http
     def get_importer(self, *, importer: str = "") -> Importer:
         """
         Returns the importer class specified by the user. If no importer is specified, it returns the first one found.
@@ -65,6 +75,7 @@ class CommandExecutor:
         return importer()
 
 
+    @no_http
     def create_ticket(self, summary, *, parent: str = "", description = "", context: str = "", duedate: str = "", importer: str = ""):
         """
         Example: gtd create_ticket --summary "Test" --context "Work" --duedate "2021-10-10" --parent "GTD-1"
@@ -80,6 +91,7 @@ class CommandExecutor:
         )
 
 
+    @no_http
     def import_csv(self, path: str):
         """
         Imports a csv file with the following columns:
@@ -102,6 +114,7 @@ class CommandExecutor:
             )
             print("Created ticket: %s" % ticket.key)
     
+    @no_http
     def upload(self, *, input: str = "", multiline: bool = False, checklists: bool = False, importer: str = "", parent: str = ""):
         """
         Uploads batch of tasks in text specified. 
@@ -218,6 +231,7 @@ class CommandExecutor:
 
 
 
+    @no_http
     def import_server(self, projectdir: str, *, notify_fifo: str = "", pidfile: str = "", importer: str = ""):
         """
         Runs the server waiting for WAKEUP message on the specified FIFO. When received, it imports tasks from the specified project directory using the specified importer. Project directory contains files where each file is named for project and contains tasks in the following format:
@@ -280,6 +294,18 @@ class CommandExecutor:
 
 
 
+    @no_http
+    def issue_token(self, user: str):
+        return issue_token(user, json_save_to_db(TOKEN_FILE), 360)
+    
+    def serve_http(self, *, port: int = 8000):
+        """
+        Starts the HTTP server on the specified port.
+        """
+        from orgasm.http_rest import serve_rest_api
+        return serve_rest_api([HTTPREST], port=port)
+
+    @no_http
     def usage(self):
         return """
         Usage: gtd COMMAND [ARGS]
@@ -293,6 +319,8 @@ class CommandExecutor:
 
         For more information about a command, use gtd COMMAND --help
         """
+    
+    @no_http
     def examples(self):
         return """
         Examples:
@@ -336,3 +364,22 @@ class CommandExecutor:
         gtd upload --input tasks.txt --checklists
         """
     
+class HTTPREST:
+    def services(self):
+        """
+        Returns a list of available services.
+        """
+        services = get_classes_inheriting(ReportService)
+        return [service.__name__ for service in services]
+    
+    @http_auth_json_file(TOKEN_FILE)
+    @http_get
+    def service(self, name: str):
+        """
+        Returns a service by name.
+        If service is not found, raises an exception.
+        """
+        services = get_classes_inheriting(ReportService)
+        for service in services:
+            if service.__name__ == name:
+                return service().provide()

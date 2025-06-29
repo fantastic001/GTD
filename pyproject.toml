@@ -19,7 +19,8 @@ dependencies = [
     "tabulate",
     "markdown-it-py",
     "orgasm-package",
-    "mdit_py_plugins"
+    "mdit_py_plugins",
+    "flask"
 ]
 readme = "README.md"
 requires-python = ">=3.9"

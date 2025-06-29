@@ -3,6 +3,11 @@ from  gtd.config import get_symbols_satisfying
 from multiprocessing import Pool
 
 from gtd.style import error, paragraph, red
+
+class ReportService:
+    def provide(self):
+        raise NotImplementedError("This method should be overridden by subclasses")
+
 class Report:
     def __init__(self) -> None:
         self.elements = [] 

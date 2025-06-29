@@ -8,6 +8,7 @@ tabulate
 markdown-it-py
 orgasm-package
 mdit_py_plugins
+flask
 
 #-e file:///data/Development/fantastixus-ai
 #openai

@@ -5,7 +5,7 @@ import json
 import datetime 
 from gtd.config import get_config_str
 from gtd.style import *
-from gtd.extensions import load_extensions
+from gtd.extensions import ReportService, load_extensions
 from gtd.importer import Importer
 from gtd.utils import ExponentialBackoff
 ai_enabled = True
@@ -69,6 +69,7 @@ class TrelloAPI:
         except Exception as e:
             raise ValueError("Error setting Trello token: %s" % e)
         self.api = api
+        self.list_name = {} 
 
     @backoff
     def get_boards(self):
@@ -151,7 +152,9 @@ class TrelloAPI:
     @backoff
     def get_list_name(self, card):
         try:
-            return self.api.lists.get(card['idList'])['name']
+            if card['idList'] not in self.list_name:
+                self.list_name[card['idList']] = self.api.lists.get(card['idList'])['name']
+            return self.list_name[card['idList']]
         except KeyError:
             raise ValueError("Key 'name' not found in list, API probably changed, data: %s" % card)
         except Exception as e:
@@ -568,3 +571,27 @@ def generate_retro_report(year, week):
     result.append("</body>")
     result.append("</html>")
     return result
+
+class TrelloOpenCards(ReportService):
+    """
+    Provides a report of open cards in Trello.
+    """
+
+    def provide(self):
+        result = [] 
+        try:
+            api = TrelloAPI()
+            open_cards = api.get_open_cards()
+            return [{
+                "title": c["name"],
+                "description": c.get("desc", ""),
+                "due_date": utc_to_this_tz(c["due"]) if c["due"] else None,
+                "project": api.get_list_name(c),
+                "url": c["shortUrl"],
+                "labels": [l["name"] for l in c["labels"]],
+                "id": c["id"],
+            } for c in open_cards]
+        except:
+            return {
+                "error": "Error getting open cards from Trello. Please check your configuration and API key."
+            }
