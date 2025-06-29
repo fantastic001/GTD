@@ -303,7 +303,7 @@ class CommandExecutor:
         Starts the HTTP server on the specified port.
         """
         from orgasm.http_rest import serve_rest_api
-        return serve_rest_api([HTTPREST], port=port)
+        return serve_rest_api([ServicesExecutor], port=port)
 
     @no_http
     def usage(self):
@@ -364,7 +364,7 @@ class CommandExecutor:
         gtd upload --input tasks.txt --checklists
         """
     
-class HTTPREST:
+class ServicesExecutor:
     def services(self):
         """
         Returns a list of available services.

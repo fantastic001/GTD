@@ -1,5 +1,5 @@
 from typing import Dict 
-from gtd.command_executor import CommandExecutor
+from gtd.command_executor import CommandExecutor, ServicesExecutor
 from orgasm import command_executor_main
 
 def pretty_print(obj):
@@ -17,7 +17,7 @@ def pretty_print(obj):
 
 def main():
     command_executor_main(
-        CommandExecutor,
+        [CommandExecutor, ServicesExecutor],
         explicit_params=False
     )
 
