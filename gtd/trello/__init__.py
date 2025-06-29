@@ -595,3 +595,29 @@ class TrelloOpenCards(ReportService):
             return {
                 "error": "Error getting open cards from Trello. Please check your configuration and API key."
             }
+
+class TrelloClosedCards(ReportService):
+    """
+    Provides a report of closed cards in Trello.
+    """
+
+    def provide(self):
+        result = [] 
+        try:
+            api = TrelloAPI()
+            closed_cards = api.get_closed_cards()
+            return [{
+                "title": c["name"],
+                "description": c.get("desc", ""),
+                "due_date": utc_to_this_tz(c["due"]) if c["due"] else None,
+                "project": api.get_list_name(c),
+                "url": c["shortUrl"],
+                "labels": [l["name"] for l in c["labels"]],
+                "id": c["id"],
+                "closed_date": utc_to_this_tz(c["dateLastActivity"]) if c["dateLastActivity"] else None,
+            } for c in closed_cards]
+        except:
+            return {
+                "error": "Error getting closed cards from Trello. Please check your configuration and API key."
+            }
+
