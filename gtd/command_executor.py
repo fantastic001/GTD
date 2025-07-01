@@ -303,7 +303,7 @@ class CommandExecutor:
         Starts the HTTP server on the specified port.
         """
         from orgasm.http_rest import serve_rest_api
-        return serve_rest_api([ServicesExecutor], port=port)
+        return serve_rest_api([ServicesExecutor], port=port, host="0.0.0.0")
 
     @no_http
     def usage(self):
