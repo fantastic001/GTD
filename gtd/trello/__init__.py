@@ -617,11 +617,12 @@ class TrelloClosedCards(ReportService):
                 "labels": [l["name"] for l in c["labels"]],
                 "id": c["id"],
                 "closed_date": utc_to_this_tz(c["dateLastActivity"]) if c["dateLastActivity"] else None,
-                "closed_from_today": (today - utc_to_this_tz(c["dateLastActivity"])).days if c["dateLastActivity"] else None,
+                "closed_from_today": (today - utc_to_this_tz(c["dateLastActivity"]).date()).days if c["dateLastActivity"] else None,
             } for c in closed_cards]
-        except:
+        except Exception as e:
             return {
-                "error": "Error getting closed cards from Trello. Please check your configuration and API key."
+                "error": "Error getting closed cards from Trello. Please check your configuration and API key.",
+                "details": str(e)
             }
 
 class TrelloThisWeekCards(ReportService):
