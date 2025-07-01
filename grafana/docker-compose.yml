@@ -3,7 +3,9 @@ version: "3.8"
 services:
   grafana:
     image: grafana/grafana:latest          # OSS or Enterprise, your choice
-    container_name: grafana
+    ports:
+      # publish 3000 only on loopback interface
+      - "127.0.0.1:3000:3000"      # bind to localhost only 
     environment:
       # disable https only for development
       GF_SERVER_PROTOCOL: "http"            # use http instead of https
