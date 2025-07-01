@@ -605,6 +605,7 @@ class TrelloClosedCards(ReportService):
     def provide(self):
         result = [] 
         try:
+            today = datetime.datetime.now().date()
             api = TrelloAPI()
             closed_cards = api.get_closed_cards()
             return [{
@@ -616,6 +617,7 @@ class TrelloClosedCards(ReportService):
                 "labels": [l["name"] for l in c["labels"]],
                 "id": c["id"],
                 "closed_date": utc_to_this_tz(c["dateLastActivity"]) if c["dateLastActivity"] else None,
+                "closed_from_today": (today - utc_to_this_tz(c["dateLastActivity"])).days if c["dateLastActivity"] else None,
             } for c in closed_cards]
         except:
             return {
