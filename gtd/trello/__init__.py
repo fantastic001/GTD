@@ -10,6 +10,8 @@ from gtd.importer import Importer
 from gtd.utils import ExponentialBackoff
 ai_enabled = True
 
+this_week_label = get_config_str("trello_this_week_label", "This week", "Label Used in tasks in Trello to mark tasks for this week")
+
 try:
     from fantastixus_ai import get_action_points, load_credentials, get_help_with_task
 except ImportError:
@@ -309,7 +311,6 @@ MathJax = {
 
 def generate_report():
     result = [] 
-    this_week_label = get_config_str("trello_this_week_label", "This week", "Label Used in tasks in Trello to mark tasks for this week")
     ai_help_label = get_config_str("trello_ai_help_label", "Help", "Label Used in tasks in Trello to mark tasks for AI help")
     result.append("<!DOCTYPE html>")
     result.append("<html>")
@@ -621,3 +622,27 @@ class TrelloClosedCards(ReportService):
                 "error": "Error getting closed cards from Trello. Please check your configuration and API key."
             }
 
+class TrelloThisWeekCards(ReportService):
+    """
+    Provides a report of cards for this week in Trello.
+    """
+
+    def provide(self):
+        result = [] 
+        try:
+            api = TrelloAPI()
+            open_cards = api.get_open_cards()
+            this_week = [c for c in open_cards if this_week_label in [l["name"] for l in c["labels"]]]
+            return [{
+                "title": c["name"],
+                "description": c.get("desc", ""),
+                "due_date": utc_to_this_tz(c["due"]) if c["due"] else None,
+                "project": api.get_list_name(c),
+                "url": c["shortUrl"],
+                "labels": [l["name"] for l in c["labels"]],
+                "id": c["id"],
+            } for c in this_week]
+        except:
+            return {
+                "error": "Error getting cards for this week from Trello. Please check your configuration and API key."
+            }
