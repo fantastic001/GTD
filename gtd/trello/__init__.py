@@ -12,6 +12,8 @@ ai_enabled = True
 
 this_week_label = get_config_str("trello_this_week_label", "This week", "Label Used in tasks in Trello to mark tasks for this week")
 
+abandomed_label = get_config_str("trello_abandoned_label", "Abandoned", "Label Used in tasks in Trello to mark tasks that are abandoned")
+
 try:
     from fantastixus_ai import get_action_points, load_credentials, get_help_with_task
 except ImportError:
@@ -135,7 +137,8 @@ class TrelloAPI:
             board_name = self.get_default_board()
         board = self.get_board(board_name)
         try:
-            return self.api.boards.get_card(board['id'], filter='closed') + list(filter(CheckField("dueComplete"), self.api.boards.get_card(board['id'])))
+            cards =  self.api.boards.get_card(board['id'], filter='closed') + list(filter(CheckField("dueComplete"), self.api.boards.get_card(board['id'])))
+            return [c for c in cards if abandomed_label not in [l["name"] for l in c["labels"]]]
         except Exception as e:
             print("Error getting cards: %s" % e)
             raise ValueError("Error getting cards")
