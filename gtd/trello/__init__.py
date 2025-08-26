@@ -476,8 +476,8 @@ class TrelloImporter(Importer):
 
     def list_projects(self):
         return [l["name"].strip() for l in self.api.get_lists()]
-    
-    def create(self, title, description, due_date = None, context = None, project = None, checklist = None):
+
+    def create(self, title, description, due_date = None, context = None, project = None, checklists = None):
         print("""
               Creating a new card in Trello:
                 Title: %s
@@ -486,7 +486,7 @@ class TrelloImporter(Importer):
                 Context: %s
                 Project: %s
                 Checklist: %s
-                """ % (title, description, due_date, context, project, checklist)
+                """ % (title, description, due_date, context, project, checklists)
         )
         if project is None:
             project = self.list_projects()[0]
@@ -497,10 +497,12 @@ class TrelloImporter(Importer):
             self.api.add_list(project)
         list_id = next(l for l in self.api.get_lists() if l["name"].strip() == project)["id"]
         card = self.api.add_card(title, list_id, desc=description, due=due_date)
-        if checklist is not None and len(checklist) > 0:
-            checklist_id = self.api.add_checklist(card["id"], "Checklist")["id"]
-            for item in checklist:
-                self.api.add_checklist_item(checklist_id, item)
+        if checklists is not None and len(checklists.keys()) > 0:
+            for checklist_name, checklist_items in checklists.items():
+                if len(checklist_items) > 0:
+                    checklist_id = self.api.add_checklist(card["id"], checklist_name)["id"]
+                    for item in checklist_items:
+                        self.api.add_checklist_item(checklist_id, item)
         print("Card created: %s" % card["shortUrl"])
         return card["shortUrl"]
 

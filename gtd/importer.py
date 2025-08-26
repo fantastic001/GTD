@@ -1,4 +1,5 @@
 
+from typing import Dict
 from datetime import date 
 from abc import ABC, abstractmethod
 
@@ -12,7 +13,7 @@ class Importer(ABC):
             due_date: date = None,
             context: str = None,
             project: str = None,
-            checklist: list[str] = None,
+            checklists: Dict[str, list[str]] = None,
         ):
         """
         Create a new task with the given parameters.
@@ -54,7 +55,7 @@ def import_task(
     due_date: date = None,
     context: str = None,
     project: str = None,
-    checklist: list[str] = None,
+    checklists: Dict[str, list[str]] = None,
 ):
     """
     Import a task with the given parameters.
@@ -64,7 +65,7 @@ def import_task(
         return True
 
     try:
-        importer.create(title, description, due_date, context, project, checklist)
+        importer.create(title, description, due_date, context, project, checklists)
     except Exception as e:
         print(f"Error creating task '{title}': {e}")
         return False

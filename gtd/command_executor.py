@@ -115,7 +115,7 @@ class CommandExecutor:
             print("Created ticket: %s" % ticket.key)
     
     @no_http
-    def upload(self, *, input: str = "", multiline: bool = False, checklists: bool = False, importer: str = "", parent: str = ""):
+    def upload(self, *, input: str = "", multiline: bool = False, checklists: bool = False, importer: str = "", parent: str = "", multi_checklist: bool = False):
         """
         Uploads batch of tasks in text specified. 
 
@@ -128,6 +128,7 @@ class CommandExecutor:
             If none importer is available, command will fail.
             If only one importer is available, it will be used.
         :param parent: If specified, use this parent for all tasks. If not specified, use first found.
+        :param multi_checklist: If True, allows multiple checklist items per task when using checklists mode. Checklist names are formatted as "Checklist name:". Note that ": " at the end is required.
         """
         importer: Importer = self.get_importer(importer=importer)
         available_parents = importer.list_projects()
@@ -193,7 +194,9 @@ class CommandExecutor:
         elif not multiline and checklists:
             summary = ""
             description = ""
-            checklists = []
+            my_checklists = {}
+            current_checklist = "Checklist"
+            my_checklists[current_checklist] = []
             for line in input_f:
                 line = line.strip()
                 if line == "":
@@ -203,26 +206,35 @@ class CommandExecutor:
                             title=summary,
                             description=description,
                             project=parent,
-                            checklist=checklists,
+                            checklists=my_checklists,
                             unique=True,
                         ):
                             print("Created ticket: %s" % summary)
                     summary = ""
                     description = ""
-                    checklists = []
+                    my_checklists = {}
+                    current_checklist = "Checklist"
+                    my_checklists[current_checklist] = []
                 elif summary == "":
                     summary = line
                 elif line.startswith("*"):
-                    checklists.append(line[1:].strip())
+                    checklists_item = line[1:].strip()
+                    my_checklists[current_checklist].append(checklists_item)
                 else:
-                    description += line + "\n"
+                    if line.endswith(":") and multi_checklist:
+                        checklist_name = line[:-1].strip()
+                        if checklist_name not in my_checklists:
+                            my_checklists[checklist_name] = []
+                        current_checklist = checklist_name
+                    else:
+                        description += line + "\n"
             if summary != "":
                 if import_task(
                     importer=importer,
                     title=summary,
                     description=description,
                     project=parent,
-                    checklist=checklists,
+                    checklists=my_checklists,
                     unique=True,
                 ):
                     print("Created ticket: %s" % summary)
