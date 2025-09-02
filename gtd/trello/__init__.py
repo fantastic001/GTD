@@ -683,9 +683,9 @@ class TrelloThisWeekNetClosure(ReportService):
             today = datetime.datetime.now().date()
             start_of_week = today - datetime.timedelta(days=6)
             api = TrelloAPI()
-            open_cards = api.get_open_cards()
-            open_this_week = [c for c in open_cards if api.get_creation_date(c).date() >= start_of_week]
             closed_cards = api.get_closed_cards()
+            all_cards = api.get_open_cards() + closed_cards
+            open_this_week = [c for c in all_cards if api.get_creation_date(c).date() >= start_of_week]
             closed_this_week = list([c for c in closed_cards if datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() >= start_of_week])
             result["open_this_week"] = len(open_this_week)
             result["closed_this_week"] = len(closed_this_week)
