@@ -312,6 +312,21 @@ MathJax = {
                 raise ValueError("Error attaching HTML")
         return attachment_path
 
+    @backoff
+    def get_creation_date(self, card):
+        """
+        Returns the creation date of the given card.
+        """
+        try:
+            card_id = card['id']
+            # First 8 chars = timestamp (hex)
+            ts_hex = card_id[:8]
+            ts_int = int(ts_hex, 16)
+            created_at = datetime.datetime.utcfromtimestamp(ts_int)
+            return created_at
+        except Exception as e:
+            raise ValueError("Error getting creation date: %s" % e)
+
 def generate_report():
     result = [] 
     ai_help_label = get_config_str("trello_ai_help_label", "Help", "Label Used in tasks in Trello to mark tasks for AI help")
@@ -414,6 +429,9 @@ def generate_report():
         )
         
         closed_this_week = list([c for c in closed_cards if datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() >= start_of_week])
+        opened_this_week = list([c for c in open_cards if api.get_creation_date(c).date() >= start_of_week])
+        result.append(paragraph("Cards opened this week: %d" % len(opened_this_week)))
+        result.append("Net closure this week: %d" % (len(closed_this_week) - len(opened_this_week)))
         list_to_closed_cards = {}
         for c in closed_this_week:
             list_name = api.get_list_name(c)
@@ -653,4 +671,28 @@ class TrelloThisWeekCards(ReportService):
         except:
             return {
                 "error": "Error getting cards for this week from Trello. Please check your configuration and API key."
+            }
+
+class TrelloThisWeekNetClosure(ReportService):
+    """
+    Provides info about net closure of cards this week.
+    """
+    def provide(self):
+        result = {} 
+        try:
+            today = datetime.datetime.now().date()
+            start_of_week = today - datetime.timedelta(days=6)
+            api = TrelloAPI()
+            open_cards = api.get_open_cards()
+            open_this_week = [c for c in open_cards if api.get_creation_date(c).date() >= start_of_week]
+            closed_cards = api.get_closed_cards()
+            closed_this_week = list([c for c in closed_cards if datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() >= start_of_week])
+            result["open_this_week"] = len(open_this_week)
+            result["closed_this_week"] = len(closed_this_week)
+            result["net_closure"] = len(closed_this_week) - len(open_this_week)
+            return result
+        except Exception as e:
+            return {
+                "error": "Error getting net closure from Trello. Please check your configuration and API key.",
+                "details": str(e)
             }
