@@ -46,6 +46,26 @@ class Importer(ABC):
         List all projects.
         """
         pass
+    
+    @abstractmethod
+    def list_all_open_tasks(self) -> list[Dict]:
+        """
+        List all open tasks.
+
+        Each task is represented as a dictionary with keys: title, description, due_date, context, project and creation_date and checklists.
+        """
+        pass
+
+    @abstractmethod
+    def list_all_closed_tasks(self) -> list[Dict]:
+        """
+        List all closed tasks.
+
+        Each task is represented as a dictionary with keys: title, description, due_date, context, project and creation_date, closure_date and checklists.
+        """
+        pass
+
+
 
 def import_task(
     importer: Importer,

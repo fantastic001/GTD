@@ -1,5 +1,6 @@
 import datetime
 import pandas as pd 
+from gtd import importer
 from gtd.config import * 
 from gtd.extensions import ReportService
 from gtd.style import * 
@@ -24,14 +25,34 @@ class CommandExecutor:
         return get_classes_inheriting(Importer)
 
     @no_http
-    def report(self):
+    def report(self, *, name: str = "", importer: str = ""):
         """
         Creates report of tasks and other information from plugins in HTML page. 
 
         When called from CLI, HTML content is printed to stdout.
         When called from Python, HTML content is returned as string.
+
+        :param name: If specified, use template with this name. If not specified, use default template.
         """
-        custom_report = generate_report()
+        if name:
+            template_dir = get_config_str("report_template_dir", "templates", "Directory with report templates")
+            template_path = os.path.join(template_dir, name + ".html.j2")
+            if not os.path.exists(template_path):
+                raise Exception("Template %s not found in %s" % (name, template_dir))
+            else:
+                from jinja2 import Environment, FileSystemLoader, select_autoescape
+                env = Environment(
+                    loader=FileSystemLoader(template_dir),
+                    autoescape=select_autoescape(['html', 'xml'])
+                )
+                template = env.get_template(name + ".html.j2")
+                custom_report = template.render(
+                    importer=self.get_importer(importer=importer)
+                )
+                return custom_report
+
+        else:
+            custom_report = generate_report()
         if custom_report is not None:
             return custom_report
         return ""

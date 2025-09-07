@@ -549,6 +549,52 @@ class TrelloImporter(Importer):
                 return True
         return False
 
+    def list_all_open_tasks(self) -> list[dict]:
+        cards = self.api.get_open_cards()
+        result = []
+        for c in cards:
+            checklist = None
+            if CheckField("idChecklists")(c):
+                checklist = self.api.get_checklist(c)
+                if checklist is not None:
+                    checklist = checklist["checkItems"]
+                    checklist = [ci["name"] for ci in checklist]
+            result.append({
+                "title": c["name"],
+                "description": c.get("desc", ""),
+                "due_date": utc_to_this_tz(c["due"]) if c["due"] else None,
+                "project": self.api.get_list_name(c),
+                "creation_date": self.api.get_creation_date(c),
+                "checklists": {
+                    "Checklist": checklist
+                } if checklist else []
+            })
+        return result    
+
+    def list_all_closed_tasks(self) -> list[dict]:
+        cards = self.api.get_closed_cards()
+        result = []
+        for c in cards:
+            checklist = None
+            if CheckField("idChecklists")(c):
+                checklist = self.api.get_checklist(c)
+                if checklist is not None:
+                    checklist = checklist["checkItems"]
+                    checklist = [ci["name"] for ci in checklist]
+            result.append({
+                "title": c["name"],
+                "description": c.get("desc", ""),
+                "due_date": utc_to_this_tz(c["due"]) if c["due"] else None,
+                "project": self.api.get_list_name(c),
+                "creation_date": self.api.get_creation_date(c),
+                "closure_date": utc_to_this_tz(c["dateLastActivity"]) if c["dateLastActivity"] else None,
+                "checklists": {
+                    "Checklist": checklist
+                } if checklist else []
+            })
+        return result
+    
+
 def generate_retro_report(year, week):
     """
     Week is specified as calendar week, starting from 1.
