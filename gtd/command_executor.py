@@ -16,7 +16,7 @@ def generate_report():
     return None 
 
 @pluggable
-def generate_retro_report(year, week):
+def generate_retro_report(year, week, start=-1):
     return None
 class CommandExecutor:
 
@@ -58,13 +58,13 @@ class CommandExecutor:
         return ""
 
     @no_http
-    def retro(self, week: int, *, year: int = 0):
+    def retro(self, week: int, *, year: int = 0, start: int = -1):
         """
         Generates a report of tasks and other information from plugins in HTML page for the specified calendar week.
         """
         if year == 0:
             year = datetime.datetime.now().year
-        custom_report = generate_retro_report(year, week)
+        custom_report = generate_retro_report(year, week, start=start)
         if custom_report is not None:
             return custom_report
         return ""

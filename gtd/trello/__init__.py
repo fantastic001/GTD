@@ -595,16 +595,18 @@ class TrelloImporter(Importer):
         return result
     
 
-def generate_retro_report(year, week):
+def generate_retro_report(year, week, start=-1):
     """
     Week is specified as calendar week, starting from 1.
 
     :param year: Year number
     :param week: Week number
+    :param start: Generate report starting from this week (default: -1, means same as week)
     :return: HTML report
     """
-    
-    week_first_day = datetime.datetime.strptime(f"{year}-W{week}-1", "%Y-W%W-%w").date()
+    if start == -1:
+        start = week
+    week_first_day = datetime.datetime.strptime(f"{year}-W{start}-1", "%Y-W%W-%w").date()
     week_last_day = datetime.datetime.strptime(f"{year}-W{week}-0", "%Y-W%W-%w").date()
     result = [] 
     result.append("<!DOCTYPE html>")
