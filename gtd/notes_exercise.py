@@ -8,6 +8,7 @@ from gtd.style import section, table, paragraph, items
 import os 
 from markdown_it import MarkdownIt
 import hashlib
+from gtd.attachments import attach_file
 
 ai_enabled = False 
 
@@ -71,8 +72,8 @@ def add_extensions(report: Report):
     report.add(paragraph("This week we will work on %s - %s" % week_section))
     if ai_enabled:
         challange = generate_weekly_challange(week_section[0], week_section[1])
-        report.add(paragraph("AI generated weekly challange:"))
-        report.add(challange)
+        report.add(paragraph("AI generated weekly challange attached below."))
+        attach_file(challange)
         
 
 
