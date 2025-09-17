@@ -9,6 +9,7 @@ from gtd.extensions import ReportService, load_extensions
 from gtd.importer import Importer
 from gtd.utils import ExponentialBackoff
 from gtd.attachments import get_attachments_dir, attach_file
+from gtd.drive import get_context_for_project
 ai_enabled = True
 
 this_week_label = get_config_str("trello_this_week_label", "This week", "Label Used in tasks in Trello to mark tasks for this week")
@@ -373,7 +374,8 @@ def generate_report():
                 task_description = "" 
                 task_description += "Title: %s\n" % c["name"]
                 task_description += "Description: %s\n" % c["desc"]
-                task_description += "Project: %s\n" % api.get_list_name(c)
+                task_description += "Project: %s\n" % mylist
+                task_description += "Context: %s\n" % get_context_for_project(mylist)
                 task_description += "Action points should be doable in 30 minutes each.\n"
                 task_description += "Please provide a list of at most 7 action points.\n"
                 suggestions = get_action_points(task_description, apikey)
@@ -467,11 +469,14 @@ def generate_report():
         ai_help(api, open_cards, ai_help_label)
     return "\n".join(result)
 
+
+
 def ai_help(api: TrelloAPI, cards, ai_help_label):
     api_key = load_credentials()
     for card in cards:
         if api.has_label(card, ai_help_label):
             project = api.get_list_name(card)
+            context = get_context_for_project(project)
             title = card["name"]
             description = card.get("desc", "")
             checklist = []
@@ -484,6 +489,8 @@ def ai_help(api: TrelloAPI, cards, ai_help_label):
             attachment_name = f"{project} - {title}"
             api.remove_label(card, ai_help_label)
             print("Removed label %s from card %s" % (ai_help_label, attachment_name))
+            if context is not None and context != "":
+                description = "%s\n\nContext:\n%s" % (description, context)
             response = get_help_with_task(api_key, project, title, description, checklist or None, comments or None)
             api.attach(card, attachment_name, response)
             print("Attached response to card %s" % attachment_name)
