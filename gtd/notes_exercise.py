@@ -111,8 +111,6 @@ def generate_weekly_challange(field: str, topic: str):
         response = response.replace("\\[", "$$").replace("\\]", "$$")
         response = response.replace("\\(", "$").replace("\\)", "$")
         
-        print("AI response received.")
-        print(response)
         proc = subprocess.Popen(["pandoc", "-o", new_entry, "-f", "markdown+tex_math_dollars+tex_math_double_backslash"], stdin=subprocess.PIPE)
         proc.communicate(input=response.encode("utf-8"))
         return new_entry
