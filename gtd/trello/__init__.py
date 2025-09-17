@@ -8,6 +8,7 @@ from gtd.style import *
 from gtd.extensions import ReportService, load_extensions
 from gtd.importer import Importer
 from gtd.utils import ExponentialBackoff
+from gtd.attachments import get_attachments_dir, attach_file
 ai_enabled = True
 
 this_week_label = get_config_str("trello_this_week_label", "This week", "Label Used in tasks in Trello to mark tasks for this week")
@@ -253,7 +254,7 @@ class TrelloAPI:
         """
         Attaches HTML to given card.
         """
-        attachments_dir = os.path.join(os.path.expanduser("~"), ".gtd", "attachments")
+        attachments_dir = get_attachments_dir()
         attachment_path = os.path.join(attachments_dir, title + ".html")
         if not os.path.exists(attachments_dir):
             os.makedirs(attachments_dir)
