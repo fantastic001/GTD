@@ -57,6 +57,9 @@ rename_and_echo() {
 find $ATTACHMENTS_DIR -type f -name "*.html" | while read file; do
     rename_and_echo "$file"
 done
+find $ATTACHMENTS_DIR -type f -name "*.pdf" | while read file; do
+    rename_and_echo "$file"
+done
 # Example usage
 my_email=$(resolve_mutt_var "from")
 echo "Resolved email: $my_email"
