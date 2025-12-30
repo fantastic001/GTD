@@ -400,17 +400,28 @@ def generate_report():
                     first_day = datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date()
         if first_day is None:
             first_day = datetime.datetime.now().date()
-        if number_closed_cards == 0:
-            result.append(paragraph("No cards closed yet. Please close some cards to see statistics."))
-            return "\n".join(result)
         days_passed = 1 + (datetime.datetime.now().date() - first_day).days
         if days_passed == 0:
             days_passed = 1
+        result.append(section("Number of open cards per list"))
+        data_table = [] 
+        
+        for l in backlog:
+            data_table.append({
+                "List": l["name"],
+                "Number of open cards": len([c for c in open_cards if c["idList"] == l["id"]])
+            })
+        df = pd.DataFrame(data_table)
+        df["Cuumulative"] = df["Number of open cards"].cumsum()
+        result.append(table(df))
         result.append(section("Statistics"))
+        result.append(paragraph("Number of open cards: %d" % len(open_cards)))
+        if number_closed_cards == 0:
+            result.append(paragraph("No cards closed yet. Please close some cards to see statistics."))
+            return "\n".join(result)
         result.append(paragraph("Average cards closed per day: %.2f" % (number_closed_cards / days_passed)))
         start_of_week = datetime.datetime.now() - datetime.timedelta(days=datetime.datetime.now().weekday())
         start_of_week = start_of_week.date()
-        result.append(paragraph("Number of open cards: %d" % len(open_cards)))
         today = datetime.datetime.now().date()
         remaining_days = 1 + (datetime.date(today.year, 12, 31) - today).days
         result.append(paragraph("Remaining days in year: %d" % remaining_days))
@@ -448,18 +459,6 @@ def generate_report():
         for list_name, closed_cards in list_to_closed_cards.items():
             result.append(section(list_name, level=1))
             result.append(items([ticket(c) for c in closed_cards]))
-        result.append(section("Number of open cards per list"))
-        data_table = [] 
-        open_cards
-        for l in backlog:
-            data_table.append({
-                "List": l["name"],
-                "Number of open cards": len([c for c in open_cards if c["idList"] == l["id"]])
-            })
-        df = pd.DataFrame(data_table)
-        df["Cuumulative"] = df["Number of open cards"].cumsum()
-        result.append(table(df))
-
         result += load_extensions()
     except ValueError as e:
         result.append(error("%s" % e))
@@ -639,7 +638,11 @@ def generate_retro_report(year, week, start=-1):
 
         result.append(section("Closed cards per list"))
         for mylist, cards in card_to_list.items():
-            result.append(section(mylist, level=1))
+            result.append(section("%s (%d card%s)" % (
+                mylist,
+                len(cards),
+                "s" if len(cards) > 1 else ""
+            ), level=1))
             result.append(items([ticket(c) for c in cards]))
         result.append(section("Statistics"))
         number_closed_cards = len(closed_cards)
