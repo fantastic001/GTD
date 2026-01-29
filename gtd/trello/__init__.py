@@ -1,9 +1,11 @@
 
+from pprint import pprint
+import re
 import trello 
 import os
 import json  
 import datetime 
-from gtd.config import get_config_str
+from gtd.config import get_config_list, get_config_str
 from gtd.style import *
 from gtd.extensions import ReportService, load_extensions
 from gtd.importer import Importer
@@ -88,7 +90,7 @@ class TrelloAPI:
     @backoff
     def get_board(self, board_name=None):
         if board_name is None:
-            board_name = self.get_default_board()
+            board_name = self.get_default_boards()[0]
         try:
             return next(b for b in self.get_boards() if b['name'] == board_name)
         except StopIteration:
@@ -97,24 +99,28 @@ class TrelloAPI:
             raise ValueError("Key 'name' not found in board, API probably changed")
 
     @backoff
-    def get_default_board(self):
+    def get_default_boards(self):
         """
         Get the default board name from the configuration file.
 
         :return: Default board name
         :raises ValueError: If the default board name is not set
         """
-        boards = self.get_boards()
-        if len(boards) == 0:
-            raise ValueError("No boards found")
-        board_name = get_config_str("trello_board", boards[0]['name'], "Trello board name")
-        return board_name
+        board_name = get_config_str("trello_board", "", "Trello board name")
+        if board_name == "":
+            boards = get_config_list("trello_boards", [], "Trello board names")
+            if len(boards) == 0:
+                raise ValueError("Trello board name not set or no boards available so cannot determine default board(s)")
+            return boards
+        else:
+            return [board_name]
 
 
     @backoff
     def get_lists(self, board_name=None):
         if board_name is None:
-            board_name = self.get_default_board()
+            board_names = self.get_default_boards()
+            return sum([self.get_lists(board_name=b) for b in board_names], [])
         board = self.get_board(board_name)
         try:
             return self.api.boards.get_list(board['id'])
@@ -125,7 +131,11 @@ class TrelloAPI:
     @backoff
     def get_open_cards(self, board_name=None):
         if board_name is None:
-            board_name = self.get_default_board()
+            board_names = self.get_default_boards()
+            return sum(
+                [self.get_open_cards(board_name=b) for b in board_names],
+                []
+            )
         board = self.get_board(board_name)
         try:
             return list(filter(NotCheckField("dueComplete"), self.api.boards.get_card(board['id'])))
@@ -136,7 +146,11 @@ class TrelloAPI:
     @backoff
     def get_closed_cards(self, board_name=None):
         if board_name is None:
-            board_name = self.get_default_board()
+            board_names = self.get_default_boards()
+            return sum(
+                [self.get_closed_cards(board_name=b) for b in board_names],
+                []
+            )
         board = self.get_board(board_name)
         try:
             cards =  self.api.boards.get_card(board['id'], filter='closed') + list(filter(CheckField("dueComplete"), self.api.boards.get_card(board['id'])))
@@ -148,7 +162,11 @@ class TrelloAPI:
     @backoff
     def get_closed_lists(self, board_name=None):
         if board_name is None:
-            board_name = self.get_default_board()
+            board_names= self.get_default_boards()
+            return sum(
+                [self.get_closed_lists(board_name=b) for b in board_names],
+                []
+            )
         board = self.get_board(board_name)
         try:
             return self.api.boards.get_list(board['id'], filter='closed')
@@ -183,7 +201,8 @@ class TrelloAPI:
     @backoff
     def add_list(self, name, board_name=None):
         if board_name is None:
-            board_name = self.get_default_board()
+            board_names = self.get_default_boards()
+            return self.add_list(name, board_name=board_names[0])
         board = self.get_board(board_name)
         try:
             return self.api.lists.new(name, board['id'])
@@ -328,6 +347,26 @@ MathJax = {
             return created_at
         except Exception as e:
             raise ValueError("Error getting creation date: %s" % e)
+    
+    @backoff
+    def get_closure_date(self, card):
+        """
+        Returns the closure date of the given card.
+        """
+        try:
+            activity = self.api.cards.get(card['id'], actions='updateCard')
+            f = lambda date_str: datetime.datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%fZ").date()
+            for act in sorted(activity['actions'], key=lambda x: f(x['date']), reverse=True):
+                
+                if ("data" in act and 
+                    'old' in act['data'] and 
+                    'closed' in act['data']['old'] and
+                    not act['data']['old']['closed']):
+                    d = f(act['date'])
+                    return d
+            return None
+        except Exception as e:
+            raise ValueError("Error getting closure date: %s" % e)
 
 def generate_report():
     result = [] 
@@ -442,7 +481,11 @@ def generate_report():
             )
         )
         
-        closed_this_week = list([c for c in closed_cards if datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() >= start_of_week])
+        closed_this_week = []
+        for c in closed_cards:
+            closure_date = api.get_closure_date(c)
+            if closure_date is not None and closure_date >= start_of_week:
+                closed_this_week.append(c)
         opened_this_week = list([c for c in open_cards if api.get_creation_date(c).date() >= start_of_week])
         result.append(paragraph("Cards opened this week: %d" % len(opened_this_week)))
         result.append("Net closure this week: %d" % (len(closed_this_week) - len(opened_this_week)))
@@ -452,20 +495,18 @@ def generate_report():
             if list_name not in list_to_closed_cards:
                 list_to_closed_cards[list_name] = []
             list_to_closed_cards[list_name].append(c)
-        if len(closed_this_week) > 0:
-            result.append(paragraph("Last card closed on %s" % api.get_closed_cards()[0]["dateLastActivity"]))
         result.append(paragraph("Cards closed this week: %d" % len(closed_this_week)))
         result.append(section("Closed cards this week"))
         for list_name, closed_cards in list_to_closed_cards.items():
             result.append(section(list_name, level=1))
             result.append(items([ticket(c) for c in closed_cards]))
         result += load_extensions()
+        if ai_enabled:
+            ai_help(api, open_cards, ai_help_label)
     except ValueError as e:
         result.append(error("%s" % e))
     result.append("</body>")
     result.append("</html>")
-    if ai_enabled:
-        ai_help(api, open_cards, ai_help_label)
     return "\n".join(result)
 
 
@@ -499,10 +540,18 @@ class TrelloImporter(Importer):
     def __init__(self):
         self.api = TrelloAPI()
 
-    def list_projects(self):
-        return [l["name"].strip() for l in self.api.get_lists()]
+    def list_projects(self, board_name=None):
+        return [l["name"].strip() for l in self.api.get_lists(board_name=board_name)]
 
     def create(self, title, description, due_date = None, context = None, project = None, checklists = None):
+        # context here represents the board
+        board_name = None 
+        boards = self.api.get_default_boards()
+        if context is None:
+            board_name = boards[0]
+            context = board_name
+        if context not in boards:
+            raise ValueError("Board %s not found in Trello boards: %s" % (context, ", ".join(boards)))
         print("""
               Creating a new card in Trello:
                 Title: %s
@@ -514,13 +563,13 @@ class TrelloImporter(Importer):
                 """ % (title, description, due_date, context, project, checklists)
         )
         if project is None:
-            project = self.list_projects()[0]
+            project = self.list_projects(context)[0]
         else:
             project = project.strip()
-        if project not in self.list_projects():
+        if project not in self.list_projects(context):
             print("Project %s not found, creating it" % project)
-            self.api.add_list(project)
-        list_id = next(l for l in self.api.get_lists() if l["name"].strip() == project)["id"]
+            self.api.add_list(project, board_name=context)
+        list_id = next(l for l in self.api.get_lists(context) if l["name"].strip() == project)["id"]
         card = self.api.add_card(title, list_id, desc=description, due=due_date)
         if checklists is not None and len(checklists.keys()) > 0:
             for checklist_name, checklist_items in checklists.items():
@@ -531,8 +580,8 @@ class TrelloImporter(Importer):
         print("Card created: %s" % card["shortUrl"])
         return card["shortUrl"]
 
-    def create_project(self, name):
-        self.api.add_list(name)
+    def create_project(self, name, context = None):
+        self.api.add_list(name, board_name=context)
     
     def exists(self, title, description = None, due_date = None, context = None, project = None):
         """
@@ -546,61 +595,15 @@ class TrelloImporter(Importer):
         :return: True if the card exists, False otherwise
         """
         if project is None:
-            project = self.list_projects()[0]
-        list_id = next(iter([l for l in self.api.get_lists() if l["name"] == project]), {"id": None})["id"]
+            project = self.list_projects(context)[0]
+        list_id = next(iter([l for l in self.api.get_lists(context) if l["name"] == project]), {"id": None})["id"]
         if list_id is None:
             return False 
-        cards = self.api.get_open_cards()
+        cards = self.api.get_open_cards(context)
         for card in cards:
             if card["name"] == title and card["idList"] == list_id:
                 return True
-        return False
-
-    def list_all_open_tasks(self) -> list[dict]:
-        cards = self.api.get_open_cards()
-        result = []
-        for c in cards:
-            checklist = None
-            if CheckField("idChecklists")(c):
-                checklist = self.api.get_checklist(c)
-                if checklist is not None:
-                    checklist = checklist["checkItems"]
-                    checklist = [ci["name"] for ci in checklist]
-            result.append({
-                "title": c["name"],
-                "description": c.get("desc", ""),
-                "due_date": utc_to_this_tz(c["due"]) if c["due"] else None,
-                "project": self.api.get_list_name(c),
-                "creation_date": self.api.get_creation_date(c),
-                "checklists": {
-                    "Checklist": checklist
-                } if checklist else []
-            })
-        return result    
-
-    def list_all_closed_tasks(self) -> list[dict]:
-        cards = self.api.get_closed_cards()
-        result = []
-        for c in cards:
-            checklist = None
-            if CheckField("idChecklists")(c):
-                checklist = self.api.get_checklist(c)
-                if checklist is not None:
-                    checklist = checklist["checkItems"]
-                    checklist = [ci["name"] for ci in checklist]
-            result.append({
-                "title": c["name"],
-                "description": c.get("desc", ""),
-                "due_date": utc_to_this_tz(c["due"]) if c["due"] else None,
-                "project": self.api.get_list_name(c),
-                "creation_date": self.api.get_creation_date(c),
-                "closure_date": utc_to_this_tz(c["dateLastActivity"]) if c["dateLastActivity"] else None,
-                "checklists": {
-                    "Checklist": checklist
-                } if checklist else []
-            })
-        return result
-    
+        return False    
 
 def generate_retro_report(year, week, start=-1):
     """

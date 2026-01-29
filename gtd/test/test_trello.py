@@ -95,7 +95,7 @@ class TestTrelloAPI(unittest.TestCase):
     def test_get_default_board_falls_back_to_config(self):
         boards = [{'name': 'Whatever', 'id': '42'}]
         with patch.object(self.client, 'get_boards', return_value=boards):
-            self.assertEqual(self.client.get_default_board(), "Work")  # from config
+            self.assertEqual(self.client.get_default_boards(), ["Work"])  # from config
 
     # -----------------------  has_label  --------------------------
 

@@ -136,7 +136,7 @@ class CommandExecutor:
             print("Created ticket: %s" % ticket.key)
     
     @no_http
-    def upload(self, *, input: str = "", multiline: bool = False, checklists: bool = False, importer: str = "", parent: str = "", multi_checklist: bool = False):
+    def upload(self, *, input: str = "", multiline: bool = False, checklists: bool = False, importer: str = "", parent: str = "", multi_checklist: bool = False, context: str = ""):
         """
         Uploads batch of tasks in text specified. 
 
@@ -150,7 +150,10 @@ class CommandExecutor:
             If only one importer is available, it will be used.
         :param parent: If specified, use this parent for all tasks. If not specified, use first found.
         :param multi_checklist: If True, allows multiple checklist items per task when using checklists mode. Checklist names are formatted as "Checklist name:". Note that ": " at the end is required.
+        :param context: Context for the tasks.
         """
+        if context == "":
+            context = None 
         importer: Importer = self.get_importer(importer=importer)
         available_parents = importer.list_projects()
         if checklists:
@@ -174,6 +177,7 @@ class CommandExecutor:
                     importer=importer,
                     title=line,
                     project=parent,
+                    context=context,
                     unique=True,
                 ):
                     print("Created ticket: %s" % line)
@@ -193,6 +197,7 @@ class CommandExecutor:
                             description=description,
                             project=parent,
                             unique=True,
+                            context=context,
                         ):
                             print("Created ticket: %s" % summary)
                     summary = ""
@@ -208,6 +213,7 @@ class CommandExecutor:
                     description=description,
                     project=parent,
                     unique=True,
+                    context=context,
                 ):
                     print("Created ticket: %s" % summary)
                 else:
@@ -229,6 +235,7 @@ class CommandExecutor:
                             project=parent,
                             checklists=my_checklists,
                             unique=True,
+                            context=context,
                         ):
                             print("Created ticket: %s" % summary)
                     summary = ""
@@ -257,6 +264,7 @@ class CommandExecutor:
                     project=parent,
                     checklists=my_checklists,
                     unique=True,
+                    context=context,
                 ):
                     print("Created ticket: %s" % summary)
                 else:
@@ -265,7 +273,7 @@ class CommandExecutor:
 
 
     @no_http
-    def import_server(self, projectdir: str, *, notify_fifo: str = "", pidfile: str = "", importer: str = ""):
+    def import_server(self, projectdir: str, *, notify_fifo: str = "", pidfile: str = "", importer: str = "", context: str = ""):
         """
         Runs the server waiting for WAKEUP message on the specified FIFO. When received, it imports tasks from the specified project directory using the specified importer. Project directory contains files where each file is named for project and contains tasks in the following format:
         Task 1
@@ -280,8 +288,11 @@ class CommandExecutor:
             if multiple importers are available, command will fail. 
             If none importer is available, command will fail.
             If only one importer is available, it will be used.
+        :param context: Context for the tasks.
 
         """
+        if context == "":
+            context = None
         if notify_fifo == "":
             notify_fifo = get_config_str("import_server_notify_fifo", "/tmp/gtd_import_server_fifo", "FIFO file for import server")
         if pidfile == "":
@@ -318,6 +329,7 @@ class CommandExecutor:
                                         title=task,
                                         project=filename[:-4],  # remove .txt extension
                                         unique=True,
+                                        context=context,
                                     ):
                                         print("Error occurred while creating ticket: %s" % task)
                                         failed = True

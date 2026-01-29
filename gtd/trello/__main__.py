@@ -8,7 +8,7 @@ import json
 api = TrelloAPI()
 
 if sys.argv[1] == "backup":
-    backlog = api.get_default_board()
+    backlog = api.get_default_boards()
     cards = api.get_open_cards(backlog)
     closed_cards = api.get_closed_cards(backlog)
     backup_file = sys.argv[2]
