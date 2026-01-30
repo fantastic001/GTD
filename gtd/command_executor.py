@@ -155,13 +155,13 @@ class CommandExecutor:
         if context == "":
             context = None 
         importer: Importer = self.get_importer(importer=importer)
-        available_parents = importer.list_projects()
+        available_parents = importer.list_projects(context)
         if checklists:
             # if using checklists, multiline behavior is assumed so we can safely turn it off
             multiline = False
         if parent != "" and parent not in available_parents:
             print("Parent %s not found. Creating it." % parent)
-            importer.create_project(parent)
+            importer.create_project(parent, context)
         elif parent == "":
             parent = available_parents[0]
         if input == "":

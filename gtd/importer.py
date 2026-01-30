@@ -34,38 +34,18 @@ class Importer(ABC):
         pass
 
     @abstractmethod
-    def create_project(self, name: str):
+    def create_project(self, name: str, context: str):
         """
         Create a new project with the given name.
         """
         pass
 
     @abstractmethod
-    def list_projects(self) -> list[str]:
+    def list_projects(self, context: str) -> list[str]:
         """
         List all projects.
         """
         pass
-    
-    @abstractmethod
-    def list_all_open_tasks(self) -> list[Dict]:
-        """
-        List all open tasks.
-
-        Each task is represented as a dictionary with keys: title, description, due_date, context, project and creation_date and checklists.
-        """
-        pass
-
-    @abstractmethod
-    def list_all_closed_tasks(self) -> list[Dict]:
-        """
-        List all closed tasks.
-
-        Each task is represented as a dictionary with keys: title, description, due_date, context, project and creation_date, closure_date and checklists.
-        """
-        pass
-
-
 
 def import_task(
     importer: Importer,
