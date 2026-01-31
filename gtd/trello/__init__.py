@@ -442,17 +442,32 @@ def generate_report():
         days_passed = 1 + (datetime.datetime.now().date() - first_day).days
         if days_passed == 0:
             days_passed = 1
-        result.append(section("Number of open cards per list"))
-        data_table = [] 
-        
-        for l in backlog:
-            data_table.append({
-                "List": l["name"],
-                "Number of open cards": len([c for c in open_cards if c["idList"] == l["id"]])
-            })
-        df = pd.DataFrame(data_table)
-        df["Cuumulative"] = df["Number of open cards"].cumsum()
-        result.append(table(df))
+        boards = api.get_default_boards()
+        if len(boards) == 1:
+            result.append(section("Number of open cards per list"))
+            data_table = [] 
+            
+            for l in backlog:
+                data_table.append({
+                    "List": l["name"],
+                    "Number of open cards": len([c for c in open_cards if c["idList"] == l["id"]])
+                })
+            df = pd.DataFrame(data_table)
+            df["Cuumulative"] = df["Number of open cards"].cumsum()
+            result.append(table(df))
+        else:
+            data_table = []
+            for b in boards:
+                open_cards_board = api.get_open_cards(board_name=b)
+                if len(open_cards_board) == 0:
+                    continue
+                data_table.append({
+                    "Board": b,
+                    "Number of open cards": len(open_cards_board)
+                })
+            df = pd.DataFrame(data_table)
+            result.append(section("Number of open cards per board"))
+            result.append(table(df))
         result.append(section("Statistics"))
         result.append(paragraph("Number of open cards: %d" % len(open_cards)))
         if number_closed_cards == 0:
