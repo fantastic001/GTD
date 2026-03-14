@@ -403,24 +403,34 @@ def deliverables_report(api: TrelloAPI, board_name, closed_this_week):
     result.append(section("Deliverables this week for board %s" % board_name))
     deliverables = {}
     for c in closed_this_week:
-        print("Processing card %s" % c["name"])
         attachments = api.get_attachments(c)
         comments = api.get_comments(c)
         list_name = api.get_list_name(c)
         dels = [] 
+        title = c["name"]
         if list_name not in deliverables:
             deliverables[list_name] = []
         for a in attachments:
-            dels.append(a['url'])
+            dels.append("%s: %s" % (title, a['url']))
         for com in comments:
             urls = re.findall(r'(https?://\S+)', com)
             if len(urls) > 0:
-                dels.append(com)
+                inline_link_re = re.compile(r'\[([^\]]+)\]\((https?://\S+)\)')
+                com = inline_link_re.sub(r'<a href="\2">\1</a>', com)
+                trello_inline_link_re = re.compile(r'\[([^\]]+)\]\((https?://\S+)\)')
+                com = trello_inline_link_re.sub(r'<a href="\2">\1</a>', com)
+                link_re = re.compile(r' (https?://\S+)')
+                com = link_re.sub(r' <a href="\1">\1</a>', com)
+                first_link_item_re = re.compile(r'^(https?://\S+)')
+                com = first_link_item_re.sub(r'<a href="\1">\1</a>', com)
+                dels.append("%s: %s" % (title, com))
         if len(dels) == 0:
             result.append(paragraph(red("Without deliverables %s - please add a comment with a link to the deliverable or attach the deliverable to the card" % ticket(c))))
         else:
             deliverables[list_name] += dels
     for list_name, dels in deliverables.items():
+        if len(dels) == 0:
+            continue
         result.append(section(list_name, level=1))
         result.append(items(dels))
     return result
