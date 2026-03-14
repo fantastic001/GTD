@@ -417,10 +417,10 @@ def deliverables_report(api: TrelloAPI, board_name, closed_this_week):
             if len(urls) > 0:
                 inline_link_re = re.compile(r'\[([^\]]+)\]\((https?://\S+)\)')
                 com = inline_link_re.sub(r'<a href="\2">\1</a>', com)
-                trello_inline_link_re = re.compile(r'\[([^\]]+)\]\((https?://\S+)\)')
+                trello_inline_link_re = re.compile(r'\[([^\]]+)\]\((https?://\S+) [^\)]*\)')
                 com = trello_inline_link_re.sub(r'<a href="\2">\1</a>', com)
-                link_re = re.compile(r' (https?://\S+)')
-                com = link_re.sub(r' <a href="\1">\1</a>', com)
+                link_re = re.compile(r'([ \t\n])(https?://\S+)')
+                com = link_re.sub(r'\1<a href="\2">\2</a>', com)
                 first_link_item_re = re.compile(r'^(https?://\S+)')
                 com = first_link_item_re.sub(r'<a href="\1">\1</a>', com)
                 dels.append("%s: %s" % (title, com))
