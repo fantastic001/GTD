@@ -1,6 +1,6 @@
 
 from gtd.config import get_config_str
-from gtd.trello import TrelloAPI, ai_help
+from gtd.trello import TrelloAPI, ai_help,  deliverables_report
 import sys 
 import json
 
@@ -36,3 +36,5 @@ elif sys.argv[1] == "comments":
         if api.has_label(card, "Help"):
             for c in api.get_comments(card):
                 print(c)
+elif sys.argv[1] == "deliverables":
+    print("\n".join(deliverables_report(api, "Default board", api.get_closed_cards()[-10:])))

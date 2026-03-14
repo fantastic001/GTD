@@ -5,7 +5,7 @@ import trello
 import os
 import json  
 import datetime 
-from gtd.config import get_config_list, get_config_str
+from gtd.config import get_config_bool, get_config_list, get_config_str
 from gtd.style import *
 from gtd.extensions import ReportService, load_extensions
 from gtd.importer import Importer
@@ -268,6 +268,19 @@ class TrelloAPI:
         except Exception as e:
             print("Error getting comments: %s" % e)
             raise ValueError("Error getting comments")
+    
+    @backoff
+    def get_attachments(self, card):
+        """
+        Returns attachments from given card.
+        """
+        try:
+            return self.api.cards.get(card['id'], attachments='true')['attachments']
+        except KeyError:
+            raise ValueError("Key 'attachments' not found in card, API probably changed, data: %s" % card)
+        except Exception as e:
+            print("Error getting attachments: %s" % e)
+            raise ValueError("Error getting attachments")
 
     @backoff
     def attach(self, card, title, markdown_content):
@@ -367,6 +380,50 @@ MathJax = {
             return None
         except Exception as e:
             raise ValueError("Error getting closure date: %s" % e)
+
+    def get_board_name(self, card):
+        """
+        Returns the name of the board the given card belongs to.
+        """
+        try:
+            board_id = card['idBoard']
+            board = self.api.boards.get(board_id)
+            return board['name']
+        except KeyError:
+            raise ValueError("Key 'idBoard' not found in card, API probably changed, data: %s" % card)
+        except Exception as e:
+            print("Error getting board name: %s" % e)
+            raise ValueError("Error getting board name")
+
+def deliverables_report(api: TrelloAPI, board_name, closed_this_week):
+    """
+    Generates a report of deliverables for this week. Deliverables are defined as cards with attachments added this week or having comments added this week. Comments should have the link to the deliverable in the comment text.
+    """
+    result = []
+    result.append(section("Deliverables this week for board %s" % board_name))
+    deliverables = {}
+    for c in closed_this_week:
+        print("Processing card %s" % c["name"])
+        attachments = api.get_attachments(c)
+        comments = api.get_comments(c)
+        list_name = api.get_list_name(c)
+        dels = [] 
+        if list_name not in deliverables:
+            deliverables[list_name] = []
+        for a in attachments:
+            dels.append(a['url'])
+        for com in comments:
+            urls = re.findall(r'(https?://\S+)', com)
+            if len(urls) > 0:
+                dels.append(com)
+        if len(dels) == 0:
+            result.append(paragraph(red("Without deliverables %s - please add a comment with a link to the deliverable or attach the deliverable to the card" % ticket(c))))
+        else:
+            deliverables[list_name] += dels
+    for list_name, dels in deliverables.items():
+        result.append(section(list_name, level=1))
+        result.append(items(dels))
+    return result
 
 def generate_report():
     result = [] 
@@ -511,10 +568,20 @@ def generate_report():
                 list_to_closed_cards[list_name] = []
             list_to_closed_cards[list_name].append(c)
         result.append(paragraph("Cards closed this week: %d" % len(closed_this_week)))
-        result.append(section("Closed cards this week"))
-        for list_name, closed_cards in list_to_closed_cards.items():
-            result.append(section(list_name, level=1))
-            result.append(items([ticket(c) for c in closed_cards]))
+        if not get_config_bool("report_deliverables", True, "Whether to report deliverables for closed cards this week"):
+            result.append(section("Closed cards this week"))
+            for list_name, closed_cards in list_to_closed_cards.items():
+                result.append(section(list_name, level=1))
+                result.append(items([ticket(c) for c in closed_cards]))
+        else:
+            board_to_closed_cards = {}
+            for c in closed_this_week:
+                board_name = api.get_board_name(c)
+                if board_name not in board_to_closed_cards:
+                    board_to_closed_cards[board_name] = []
+                board_to_closed_cards[board_name].append(c)
+            for board_name, closed_cards_in_board in board_to_closed_cards.items():
+                result += deliverables_report(api, board_name, closed_cards_in_board)
         result += load_extensions()
         if ai_enabled:
             ai_help(api, open_cards, ai_help_label)
