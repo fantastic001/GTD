@@ -2,7 +2,9 @@
 
 import time
 import json 
+import logging
 
+logger = logging.getLogger(__name__)
 
 class ExponentialBackoff:
     """
@@ -36,13 +38,13 @@ class ExponentialBackoff:
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                print(f"Attempt {attempt + 1} failed: {e}")
+                logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 self.wait(attempt)
                 attempt += 1
                 if attempt >= self.max_retries:
-                    print("Max retries reached. Giving up.")
+                    logger.error("Max retries reached. Giving up.")
                     raise
-                print(f"Retrying in {self.get_delay(attempt)} seconds...")
+                logger.warning(f"Retrying in {self.get_delay(attempt)} seconds...")
                 continue
     def __call__(self, func):
         """

@@ -9,6 +9,9 @@ import os
 from markdown_it import MarkdownIt
 import hashlib
 from gtd.attachments import attach_file
+import logging
+
+logger = logging.getLogger(__name__)
 
 ai_enabled = False 
 
@@ -16,11 +19,12 @@ try:
     from fantastixus_ai import load_credentials, get_chatgpt_response
     ai_enabled = True 
 except ImportError as e:
-    print("fanastixus_ai not installed. AI features will be disabled.")
-    print(e)
+    logger.warning("fantastixus_ai not installed. AI features will be disabled.")
+    logger.warning(e)
     pass
 
 def get_sections():
+    logger.info("Getting sections from notes...")
     notes_path = get_config_str("notes_path", "/data/Development/notes/", "Path to notes directory")
     notes_path = os.path.expanduser(notes_path)
     readme_files = [] 
@@ -35,6 +39,7 @@ def get_sections():
             continue
         basedir = os.path.dirname(readme).split(notes_path)[1]
         # read the file and convert to markdown
+        logger.debug("Processing README file: %s" % readme)
         with open(readme, "r") as f:
             content = f.read()
         md = MarkdownIt()
@@ -47,6 +52,7 @@ def get_sections():
                 heading = tokens[tokens.index(token) + 1].content
                 if level == 1:
                     sections.append((basedir, heading))
+    logger.info("Found %d sections in notes." % len(sections))
     return sections
 
 def get_lucky_number():
@@ -78,6 +84,7 @@ def add_extensions(report: Report):
 
 
 def generate_weekly_challange(field: str, topic: str):
+    logger.info("Generating weekly challange for field: %s, topic: %s" % (field, topic))
     prompt = f"""
 
         Give some fun and challanging exercise to work whole week from {field} with focus on {topic}
@@ -94,6 +101,7 @@ def generate_weekly_challange(field: str, topic: str):
         if os.path.isfile(file_path):
             mtime = os.path.getmtime(file_path)
             if now - mtime > 10 * 24 * 3600:
+                logger.info("Removing old challange cache file: %s" % file_path)
                 os.remove(file_path)
     entries = [os.path.join(challange_cache_path, f) for f in os.listdir(challange_cache_path) if os.path.isfile(os.path.join(challange_cache_path, f))]
     latest_entry = None
@@ -102,19 +110,26 @@ def generate_weekly_challange(field: str, topic: str):
     # if latest entry is older than 7 days, generate new one
     day_of_week = datetime.datetime.now().weekday()  # Monday is 0 and Sunday is 6
     if latest_entry is None or (now - os.path.getmtime(latest_entry)) > 7 * 24 * 3600 or day_of_week == 0:
+        logger.info("Generating new challange...")
         apikey = load_credentials()
         new_entry = os.path.join(challange_cache_path, f"challange_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
         # check if pandoc is installed
         if os.system("pandoc --version > /dev/null 2>&1") != 0:
+            logger.error("pandoc is not installed. Please install pandoc to use AI features.")
             raise RuntimeError("pandoc is not installed. Please install pandoc to use AI features.")
         response: str = get_chatgpt_response(prompt, apikey)
+        logger.debug("Raw response from ChatGPT: %s" % response)
         response = response.replace("\\[", "$$").replace("\\]", "$$")
         response = response.replace("\\(", "$").replace("\\)", "$")
         
-        proc = subprocess.Popen(["pandoc", "-o", new_entry, "-f", "markdown+tex_math_dollars+tex_math_double_backslash"], stdin=subprocess.PIPE)
-        proc.communicate(input=response.encode("utf-8"))
+        proc = subprocess.Popen(["pandoc", "-o", new_entry, "-f", "markdown+tex_math_dollars+tex_math_double_backslash"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = proc.communicate(input=response.encode("utf-8"))
+        if proc.returncode != 0:
+            logger.error(f"Pandoc failed to generate PDF. Error: {err.decode('utf-8')}")
+            raise RuntimeError("Pandoc failed to generate PDF.")
         return new_entry
     else:
+        logger.info("Using cached challange: %s" % latest_entry)
         return latest_entry
 if __name__ == "__main__":
     sections = get_sections()

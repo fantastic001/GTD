@@ -3,7 +3,9 @@ from  gtd.config import get_symbols_satisfying
 from multiprocessing import Pool
 
 from gtd.style import error, paragraph, red
+import logging
 
+logger = logging.getLogger(__name__)
 class ReportService:
     def provide(self):
         raise NotImplementedError("This method should be overridden by subclasses")
@@ -24,11 +26,13 @@ def _extension_result_key(report):
 def is_extension(obj):
     return hasattr(obj, "__name__") and obj.__name__ == "add_extensions" and callable(obj)
 def get_report(ext):
+    logger.info(f"Running extension: {ext.__module__}.{ext.__name__}")
     report = Report()
     try:
         ext(report)
         return report
     except Exception as e:
+        logger.error(f"Error in extension: {e}")
         report.add(paragraph(error("Error in extension: " + str(e))))
         return report
 def load_extensions() -> list:
