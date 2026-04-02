@@ -28,7 +28,7 @@ def main():
             "DEBUG": logging.DEBUG
         }[get_config_str("log_level", "INFO", "Logging level").upper()],
         format="%(levelname)s %(asctime)s %(filename)s:%(lineno)d - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S.%f",
+        datefmt=r"%Y-%m-%d %H:%M:%S.%f",
         filename=get_config_str("log_file", "gtd.log", "Log file path")
     )
     command_executor_main(
