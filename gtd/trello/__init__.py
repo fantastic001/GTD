@@ -78,7 +78,9 @@ class TrelloAPI:
         try:
             logger.info("Setting Trello token")
             api.set_token(token)
+            logger.info("Trello token set successfully")
         except json.JSONDecodeError:
+            logger.error("Invalid Trello token")
             raise ValueError("Invalid Trello token")
         except Exception as e:
             logger.error("Error setting Trello token: %s", e)
@@ -89,6 +91,7 @@ class TrelloAPI:
     @backoff
     def get_boards(self):
         try:
+            logger.info("Getting boards")
             return self.api.members.get_board('me')
         except Exception as e:
             logger.error("Error getting boards: %s", e)
@@ -97,8 +100,10 @@ class TrelloAPI:
     @backoff
     def get_board(self, board_name=None):
         if board_name is None:
+            logger.info("Getting default board")
             board_name = self.get_default_boards()[0]
         try:
+            logger.info("Getting board with name: %s", board_name)
             return next(b for b in self.get_boards() if b['name'] == board_name)
         except StopIteration:
             logger.error("Board not found: %s", board_name)
@@ -115,11 +120,15 @@ class TrelloAPI:
         :return: Default board name
         :raises ValueError: If the default board name is not set
         """
+        logger.info("Getting default board(s)")
         board_name = get_config_str("trello_board", "", "Trello board name")
         if board_name == "":
+            logger.info("Default board name not set, trying to get it from trello_boards")
             boards = get_config_list("trello_boards", [], "Trello board names")
             if len(boards) == 0:
+                logger.error("Trello board name not set or no boards available so cannot determine default board(s)")
                 raise ValueError("Trello board name not set or no boards available so cannot determine default board(s)")
+            logger.info("Default boards: %s", boards)
             return boards
         else:
             return [board_name]
@@ -127,8 +136,9 @@ class TrelloAPI:
 
     @backoff
     def get_lists(self, board_name=None):
+        logger.info("Getting lists for board: %s", board_name if board_name else "all boards")
         if board_name is None:
-            board_names = self.get_default_boards()
+            board_names = self.get_default_boards())
             return sum([self.get_lists(board_name=b) for b in board_names], [])
         board = self.get_board(board_name)
         try:
@@ -139,37 +149,48 @@ class TrelloAPI:
 
     @backoff
     def get_open_cards(self, board_name=None):
+        logger.info("Getting open cards for board: %s", board_name if board_name else "all boards")
         if board_name is None:
             board_names = self.get_default_boards()
-            return sum(
+            result =  sum(
                 [self.get_open_cards(board_name=b) for b in board_names],
                 []
             )
+            logger.info("Got %d open cards for all boards", len(result))
+            return result
         board = self.get_board(board_name)
         try:
-            return list(filter(NotCheckField("dueComplete"), self.api.boards.get_card(board['id'])))
+            result = list(filter(NotCheckField("dueComplete"), self.api.boards.get_card(board['id'])))
+            logger.info("Got %d open cards for board %s", len(result), board_name)
+            return result
+
         except Exception as e:
             logger.error("Error getting cards: %s", e)
             raise ValueError("Error getting cards")
 
     @backoff
     def get_closed_cards(self, board_name=None):
+        logger.info("Getting closed cards for board: %s", board_name if board_name else "all boards")
         if board_name is None:
             board_names = self.get_default_boards()
-            return sum(
-                [self.get_closed_cards(board_name=b) for b in board_names],
-                []
+            result = sum(
+                [self.get_closed_cards(board_name=b) for b in board_names], []
             )
+            logger.info("Got %d closed cards for all boards", len(result))
+            return result
         board = self.get_board(board_name)
         try:
             cards =  self.api.boards.get_card(board['id'], filter='closed') + list(filter(CheckField("dueComplete"), self.api.boards.get_card(board['id'])))
-            return [c for c in cards if abandomed_label not in [l["name"] for l in c["labels"]]]
+            result =  [c for c in cards if abandomed_label not in [l["name"] for l in c["labels"]]]
+            logger.info("Got %d closed cards for board %s", len(result), board_name)
+            return result
         except Exception as e:
-            print("Error getting cards: %s" % e)
+            logger.error("Error getting cards: %s", e)
             raise ValueError("Error getting cards")
 
     @backoff
     def get_closed_lists(self, board_name=None):
+        logger.info("Getting closed lists for board: %s", board_name if board_name else "all boards")
         if board_name is None:
             board_names= self.get_default_boards()
             return sum(
@@ -178,7 +199,9 @@ class TrelloAPI:
             )
         board = self.get_board(board_name)
         try:
-            return self.api.boards.get_list(board['id'], filter='closed')
+            result = self.api.boards.get_list(board['id'], filter='closed')
+            logger.info("Got %d closed lists for board %s", len(result), board_name)
+            return result
         except Exception as e:
             logger.error("Error getting lists: %s", e)
             raise ValueError("Error getting lists")
@@ -209,6 +232,7 @@ class TrelloAPI:
     
     @backoff
     def add_list(self, name, board_name=None):
+        logger.info("Adding list with name: %s to board: %s", name, board_name if board_name else "default board")
         if board_name is None:
             board_names = self.get_default_boards()
             return self.add_list(name, board_name=board_names[0])
@@ -220,6 +244,7 @@ class TrelloAPI:
             raise ValueError("Error creating list")
     @backoff
     def add_card(self, name, list_id, desc=None, due=None):
+        logger.info("Adding card with name: %s to list: %s", name, list_id)
         try:
             return self.api.cards.new(name, list_id, desc=desc, due=due)
         except Exception as e:
@@ -228,6 +253,7 @@ class TrelloAPI:
     @backoff
     def add_checklist(self, card_id, name):
         try:
+            logger.info("Adding checklist with name: %s to card: %s", name, card_id)
             return self.api.checklists.new(card_id, name)
         except Exception as e:
             logger.error("Error creating checklist: %s", e)
@@ -235,6 +261,7 @@ class TrelloAPI:
     @backoff
     def add_checklist_item(self, checklist_id, name):
         try:
+            logger.info("Adding checklist item with name: %s to checklist: %s", name, checklist_id)
             return self.api.checklists.new_checkItem(checklist_id, name)
         except Exception as e:
             logger.error("Error creating checklist item: %s", e)
@@ -296,6 +323,7 @@ class TrelloAPI:
         """
         Attaches HTML to given card.
         """
+        logger.info("Attaching content to card %s with title %s", card["name"], title)
         attachments_dir = get_attachments_dir()
         attachment_path = os.path.join(attachments_dir, title + ".html")
         if not os.path.exists(attachments_dir):
@@ -455,7 +483,9 @@ def deliverables_report(api: TrelloAPI, board_name, closed_this_week):
     return result
 
 def generate_report():
+    logger.info("Generating Trello report")
     result = [] 
+    logger.info("Loading configuration for Trello report, checking if AI help is enabled")
     ai_help_label = get_config_str("trello_ai_help_label", "Help", "Label Used in tasks in Trello to mark tasks for AI help")
     result.append("<!DOCTYPE html>")
     result.append("<html>")
@@ -466,10 +496,14 @@ def generate_report():
     result.append("<body>")
     result.append("<h1>Trello Report</h1>")
     try:
+        logger.info("Initializing Trello API")
         api = TrelloAPI()
+        logger.info("Trello API initialized successfully, getting backlog lists")
         backlog = api.get_lists()
         logger.debug("Backlog lists: %s", backlog)
+        logger.info("Getting open cards")
         open_cards = api.get_open_cards()
+        logger.info("Getting cards for this week")
         this_week = [c for c in open_cards if this_week_label in [l["name"] for l in c["labels"]]]
 
         card_to_list = {}
@@ -480,7 +514,8 @@ def generate_report():
             card_to_list[list_name].append(c)
             logger.debug("Card %s in list %s", c["name"], list_name)
 
-
+        logger.debug("Cards for this week grouped by list: %s", card_to_list)
+        logger.info("Generating report for cards this week with and without checklists")
         result.append(section("Tickets this week with checklist"))
         for mylist, cards in card_to_list.items():
             cards = list([c for c in cards if CheckField("idChecklists")(c)])
@@ -495,6 +530,7 @@ def generate_report():
             if len(cards) == 0:
                 continue
             result.append(section(mylist, level=1))
+            logger.info("Getting action points for cards in list %s without checklists, number of cards: %d", mylist, len(cards))
             apikey = load_credentials()
             for c in cards:
                 result.append(paragraph(ticket(c)))
@@ -515,6 +551,7 @@ def generate_report():
                         api.add_checklist_item(checklist["id"], s)
                 else:
                     result.append(paragraph("No suggestions found"))
+        logger.info("Getting closed cards")
         closed_cards = api.get_closed_cards()
         number_closed_cards = len(closed_cards)
         # first day is day when we created first card
@@ -559,6 +596,7 @@ def generate_report():
             df = pd.DataFrame(data_table)
             result.append(section("Number of open cards per board"))
             result.append(table(df))
+        logger.info("Generating statistics")
         result.append(section("Statistics"))
         result.append(paragraph("Number of open cards: %d" % len(open_cards)))
         if number_closed_cards == 0:
@@ -586,7 +624,7 @@ def generate_report():
                 )
             )
         )
-        
+        logger.info("Calculating closed cards for this week")
         closed_this_week = []
         for c in closed_cards:
             closure_date = api.get_closure_date(c)
@@ -608,6 +646,7 @@ def generate_report():
                 result.append(section(list_name, level=1))
                 result.append(items([ticket(c) for c in closed_cards]))
         else:
+            logger.info("Reporting deliverables for closed cards this week")
             board_to_closed_cards = {}
             for c in closed_this_week:
                 board_name = api.get_board_name(c)
@@ -616,13 +655,16 @@ def generate_report():
                 board_to_closed_cards[board_name].append(c)
             for board_name, closed_cards_in_board in board_to_closed_cards.items():
                 result += deliverables_report(api, board_name, closed_cards_in_board)
+        logger.info("Loading extensions for report")
         result += load_extensions()
         if ai_enabled:
+            logger.info("AI help enabled, generating AI help for cards with label %s", ai_help_label)
             ai_help(api, open_cards, ai_help_label)
     except ValueError as e:
         result.append(error("%s" % e))
     result.append("</body>")
     result.append("</html>")
+    logger.info("Report generated successfully")
     return "\n".join(result)
 
 
