@@ -12,6 +12,10 @@ from gtd.importer import Importer
 from gtd.utils import ExponentialBackoff
 from gtd.attachments import get_attachments_dir, attach_file
 from gtd.drive import get_context_for_project
+import logging
+
+logger = logging.getLogger(__name__)
+
 ai_enabled = True
 
 this_week_label = get_config_str("trello_this_week_label", "This week", "Label Used in tasks in Trello to mark tasks for this week")
@@ -69,12 +73,15 @@ class TrelloAPI:
         if token is None:
             token = get_config_str("trello_token", "", "Trello token")
         if token == "":
+            logger.error("Trello token not set. Please set the Trello token in the configuration file or provide it as an argument.")
             raise ValueError("Trello token not set")
         try:
+            logger.info("Setting Trello token")
             api.set_token(token)
         except json.JSONDecodeError:
             raise ValueError("Invalid Trello token")
         except Exception as e:
+            logger.error("Error setting Trello token: %s", e)
             raise ValueError("Error setting Trello token: %s" % e)
         self.api = api
         self.list_name = {} 
@@ -84,7 +91,7 @@ class TrelloAPI:
         try:
             return self.api.members.get_board('me')
         except Exception as e:
-            print("Error getting boards: %s" % e)
+            logger.error("Error getting boards: %s", e)
             raise ValueError("Error getting boards")
     
     @backoff
@@ -94,8 +101,10 @@ class TrelloAPI:
         try:
             return next(b for b in self.get_boards() if b['name'] == board_name)
         except StopIteration:
+            logger.error("Board not found: %s", board_name)
             raise ValueError("Board not found: %s" % board_name)
         except KeyError:
+            logger.error("Key 'name' not found in board, API probably changed")
             raise ValueError("Key 'name' not found in board, API probably changed")
 
     @backoff
@@ -125,7 +134,7 @@ class TrelloAPI:
         try:
             return self.api.boards.get_list(board['id'])
         except Exception as e:
-            print("Error getting lists: %s" % e)
+            logger.error("Error getting lists: %s", e)
             raise ValueError("Error getting lists")
 
     @backoff
@@ -140,7 +149,7 @@ class TrelloAPI:
         try:
             return list(filter(NotCheckField("dueComplete"), self.api.boards.get_card(board['id'])))
         except Exception as e:
-            print("Error getting cards: %s" % e)
+            logger.error("Error getting cards: %s", e)
             raise ValueError("Error getting cards")
 
     @backoff
@@ -171,7 +180,7 @@ class TrelloAPI:
         try:
             return self.api.boards.get_list(board['id'], filter='closed')
         except Exception as e:
-            print("Error getting lists: %s" % e)
+            logger.error("Error getting lists: %s", e)
             raise ValueError("Error getting lists")
     
     @backoff
@@ -183,7 +192,7 @@ class TrelloAPI:
         except KeyError:
             raise ValueError("Key 'name' not found in list, API probably changed, data: %s" % card)
         except Exception as e:
-            print("Error getting list name: %s" % e)
+            logger.error("Error getting list name: %s", e)
             raise ValueError("Error getting list name")
     
     @backoff
@@ -195,7 +204,7 @@ class TrelloAPI:
         except KeyError:
             raise ValueError("Key 'idChecklists' not found in card, API probably changed, data: %s" % card)
         except Exception as e:
-            print("Error getting checklist: %s" % e)
+            logger.error("Error getting checklist: %s", e)
             raise ValueError("Error getting checklist")
     
     @backoff
@@ -207,28 +216,28 @@ class TrelloAPI:
         try:
             return self.api.lists.new(name, board['id'])
         except Exception as e:
-            print("Error creating list: %s" % e)
+            logger.error("Error creating list: %s", e)
             raise ValueError("Error creating list")
     @backoff
     def add_card(self, name, list_id, desc=None, due=None):
         try:
             return self.api.cards.new(name, list_id, desc=desc, due=due)
         except Exception as e:
-            print("Error creating card: %s" % e)
+            logger.error("Error creating card: %s", e)
             raise ValueError("Error creating card")
     @backoff
     def add_checklist(self, card_id, name):
         try:
             return self.api.checklists.new(card_id, name)
         except Exception as e:
-            print("Error creating checklist: %s" % e)
+            logger.error("Error creating checklist: %s", e)
             raise ValueError("Error creating checklist")
     @backoff
     def add_checklist_item(self, checklist_id, name):
         try:
             return self.api.checklists.new_checkItem(checklist_id, name)
         except Exception as e:
-            print("Error creating checklist item: %s" % e)
+            logger.error("Error creating checklist item: %s", e)
             raise ValueError("Error creating checklist item")
     
     @backoff
@@ -238,7 +247,7 @@ class TrelloAPI:
         except KeyError:
             raise ValueError("Key 'labels' not found in card, API probably changed, data: %s" % card)
         except Exception as e:
-            print("Error checking label: %s" % e)
+            logger.error("Error checking label: %s", e)
             raise ValueError("Error checking label")
     @backoff
     def remove_label(self, card, label_name):
@@ -253,7 +262,7 @@ class TrelloAPI:
         except KeyError:
             raise ValueError("Key 'labels' not found in card, API probably changed, data: %s" % card)
         except Exception as e:
-            print("Error removing label: %s" % e)
+            logger.error("Error removing label: %s", e)
             raise ValueError("Error removing label")
     
     @backoff
@@ -266,7 +275,7 @@ class TrelloAPI:
         except KeyError:
             raise ValueError("Key 'comments' not found in card, API probably changed, data: %s" % card)
         except Exception as e:
-            print("Error getting comments: %s" % e)
+            logger.error("Error getting comments: %s", e)
             raise ValueError("Error getting comments")
     
     @backoff
@@ -279,7 +288,7 @@ class TrelloAPI:
         except KeyError:
             raise ValueError("Key 'attachments' not found in card, API probably changed, data: %s" % card)
         except Exception as e:
-            print("Error getting attachments: %s" % e)
+            logger.error("Error getting attachments: %s", e)
             raise ValueError("Error getting attachments")
 
     @backoff
@@ -335,14 +344,14 @@ MathJax = {
             self.api.cards.new_attachment(card['id'], open(attachment_path).read(), mimeType="text/html", name=title + ".html")
 
         except ImportError:
-            print("Error importing markdown-it-py or mdit-py-plugins")
+            logger.error("Error importing markdown-it-py or mdit-py-plugins")
             content = markdown_content
             try:
                 with open(attachment_path, "w") as f:
                     f.write(content)
                 self.api.cards.new_attachment(card['id'], open(attachment_path).read(), mimeType="text/plain", name=title + ".md")
             except Exception as e:
-                print("Error attaching HTML: %s" % e)
+                logger.error("Error attaching HTML: %s", e)
                 raise ValueError("Error attaching HTML")
         return attachment_path
 
@@ -392,20 +401,28 @@ MathJax = {
         except KeyError:
             raise ValueError("Key 'idBoard' not found in card, API probably changed, data: %s" % card)
         except Exception as e:
-            print("Error getting board name: %s" % e)
+            logger.error("Error getting board name: %s", e)
             raise ValueError("Error getting board name")
 
 def deliverables_report(api: TrelloAPI, board_name, closed_this_week):
     """
     Generates a report of deliverables for this week. Deliverables are defined as cards with attachments added this week or having comments added this week. Comments should have the link to the deliverable in the comment text.
     """
+    logger.info("Generating deliverables report for board %s with %d closed cards this week", board_name, len(closed_this_week))
     result = []
     result.append(section("Deliverables this week for board %s" % board_name))
     deliverables = {}
     for c in closed_this_week:
+        logger.info("Processing card %s", c["name"])
         attachments = api.get_attachments(c)
         comments = api.get_comments(c)
         list_name = api.get_list_name(c)
+        logger.debug(
+            "Attachments: %s, Comments: %s, List name: %s",
+            attachments,
+            comments,
+            list_name
+        )
         dels = [] 
         title = c["name"]
         if list_name not in deliverables:
@@ -424,6 +441,8 @@ def deliverables_report(api: TrelloAPI, board_name, closed_this_week):
                 first_link_item_re = re.compile(r'^(https?://\S+)')
                 com = first_link_item_re.sub(r'<a href="\1">\1</a>', com)
                 dels.append("%s: %s" % (title, com))
+            else:
+                logger.debug("No URLs found in comment: %s", com)
         if len(dels) == 0:
             result.append(paragraph(red("Without deliverables %s - please add a comment with a link to the deliverable or attach the deliverable to the card" % ticket(c))))
         else:
@@ -449,6 +468,7 @@ def generate_report():
     try:
         api = TrelloAPI()
         backlog = api.get_lists()
+        logger.debug("Backlog lists: %s", backlog)
         open_cards = api.get_open_cards()
         this_week = [c for c in open_cards if this_week_label in [l["name"] for l in c["labels"]]]
 
@@ -458,6 +478,7 @@ def generate_report():
             if list_name not in card_to_list:
                 card_to_list[list_name] = []
             card_to_list[list_name].append(c)
+            logger.debug("Card %s in list %s", c["name"], list_name)
 
 
         result.append(section("Tickets this week with checklist"))
@@ -484,6 +505,7 @@ def generate_report():
                 task_description += "Context: %s\n" % get_context_for_project(mylist)
                 task_description += "Action points should be doable in 30 minutes each.\n"
                 task_description += "Please provide a list of at most 7 action points.\n"
+                logger.debug("Getting action points for card %s with description: %s", c["name"], task_description)
                 suggestions = get_action_points(task_description, apikey)
                 
                 if len(suggestions) > 0:
@@ -510,6 +532,7 @@ def generate_report():
         if days_passed == 0:
             days_passed = 1
         boards = api.get_default_boards()
+        logger.debug("Boards: %s", boards)
         if len(boards) == 1:
             result.append(section("Number of open cards per list"))
             data_table = [] 
@@ -521,6 +544,7 @@ def generate_report():
                 })
             df = pd.DataFrame(data_table)
             df["Cuumulative"] = df["Number of open cards"].cumsum()
+            logger.debug("Data table for open cards per list: %s", df)
             result.append(table(df))
         else:
             data_table = []
@@ -620,12 +644,12 @@ def ai_help(api: TrelloAPI, cards, ai_help_label):
 
             attachment_name = f"{project} - {title}"
             api.remove_label(card, ai_help_label)
-            print("Removed label %s from card %s" % (ai_help_label, attachment_name))
+            logger.info("Removed label %s from card %s", ai_help_label, attachment_name)
             if context is not None and context != "":
                 description = "%s\n\nContext:\n%s" % (description, context)
             response = get_help_with_task(api_key, project, title, description, checklist or None, comments or None)
             api.attach(card, attachment_name, response)
-            print("Attached response to card %s" % attachment_name)
+            logger.info("Attached response to card %s", attachment_name)
 
 class TrelloImporter(Importer):
 
@@ -644,7 +668,7 @@ class TrelloImporter(Importer):
             context = board_name
         if context not in boards:
             raise ValueError("Board %s not found in Trello boards: %s" % (context, ", ".join(boards)))
-        print("""
+        logger.info("""
               Creating a new card in Trello:
                 Title: %s
                 Description: %s
@@ -659,7 +683,7 @@ class TrelloImporter(Importer):
         else:
             project = project.strip()
         if project not in self.list_projects(context):
-            print("Project %s not found, creating it" % project)
+            logger.info("Project %s not found, creating it", project)
             self.api.add_list(project, board_name=context)
         list_id = next(l for l in self.api.get_lists(context) if l["name"].strip() == project)["id"]
         card = self.api.add_card(title, list_id, desc=description, due=due_date)
@@ -669,7 +693,7 @@ class TrelloImporter(Importer):
                     checklist_id = self.api.add_checklist(card["id"], checklist_name)["id"]
                     for item in checklist_items:
                         self.api.add_checklist_item(checklist_id, item)
-        print("Card created: %s" % card["shortUrl"])
+        logger.info("Card created: %s", card["shortUrl"])
         return card["shortUrl"]
 
     def create_project(self, name, context = None):
@@ -756,6 +780,7 @@ class TrelloOpenCards(ReportService):
     """
 
     def provide(self):
+        logger.info("Generating report of open cards in Trello")
         result = [] 
         try:
             api = TrelloAPI()
@@ -780,6 +805,7 @@ class TrelloClosedCards(ReportService):
     """
 
     def provide(self):
+        logger.info("Generating report of closed cards in Trello")
         result = [] 
         try:
             today = datetime.datetime.now().date()
@@ -808,6 +834,7 @@ class TrelloThisWeekCards(ReportService):
     """
 
     def provide(self):
+        logger.info("Generating report of cards for this week in Trello")
         result = [] 
         try:
             api = TrelloAPI()
@@ -832,6 +859,7 @@ class TrelloThisWeekNetClosure(ReportService):
     Provides info about net closure of cards this week.
     """
     def provide(self):
+        logger.info("Generating report of net closure of cards this week in Trello")
         result = {} 
         try:
             today = datetime.datetime.now().date()
