@@ -138,7 +138,7 @@ class TrelloAPI:
     def get_lists(self, board_name=None):
         logger.info("Getting lists for board: %s", board_name if board_name else "all boards")
         if board_name is None:
-            board_names = self.get_default_boards())
+            board_names = self.get_default_boards()
             return sum([self.get_lists(board_name=b) for b in board_names], [])
         board = self.get_board(board_name)
         try:
