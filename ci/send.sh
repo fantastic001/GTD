@@ -61,8 +61,12 @@ find $ATTACHMENTS_DIR -type f -name "*.pdf" | while read file; do
     rename_and_echo "$file"
 done
 # Example usage
-my_email=$(resolve_mutt_var "from")
-echo "Resolved email: $my_email"
+if [ -z "$SEND_TO" ]; then
+    my_email=$(resolve_mutt_var "from")
+else
+    my_email="$SEND_TO"
+fi
+echo "Recipient email: $my_email"
 
 
 content="In attachment you can find report for GTD
@@ -80,6 +84,10 @@ else
     echo "$content" | mutt -s "GTD report" -a report.html -a $ATTACHMENTS_DIR/* -- $my_email
 fi
 
+if [ -n "$DRIVE" ]; then
+    echo "Sending to Google Drive"
+    ./ci/send_drive.sh
+fi
 
 
 rm -rf $ATTACHMENTS_DIR/*
