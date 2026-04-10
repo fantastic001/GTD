@@ -12,6 +12,7 @@ from gtd.importer import Importer
 from gtd.utils import ExponentialBackoff
 from gtd.attachments import get_attachments_dir, attach_file
 from gtd.drive import get_context_for_project
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -432,6 +433,14 @@ MathJax = {
             logger.error("Error getting board name: %s", e)
             raise ValueError("Error getting board name")
 
+def get_closed_dates(api: TrelloAPI, closed_cards):
+    closed_this_week = {}
+    for c in closed_cards:
+        closure_date = api.get_closure_date(c)
+        closed_this_week[c['id']] = closure_date
+    return closed_this_week
+
+
 def deliverables_report(api: TrelloAPI, board_name, closed_this_week):
     """
     Generates a report of deliverables for this week. Deliverables are defined as cards with attachments added this week or having comments added this week. Comments should have the link to the deliverable in the comment text.
@@ -625,11 +634,16 @@ def generate_report():
             )
         )
         logger.info("Calculating closed cards for this week")
-        closed_this_week = []
-        for c in closed_cards:
-            closure_date = api.get_closure_date(c)
-            if closure_date is not None and closure_date >= start_of_week:
-                closed_this_week.append(c)
+        closed_dates = get_closed_dates(api, closed_cards)
+        closed_this_week = [c for c in closed_cards if c['id'] in closed_dates and closed_dates[c['id']] is not None and closed_dates[c['id']] >= start_of_week]
+        if get_config_bool("report_score", False, "Whether to report score for closed cards this week"):
+            logger.info("Calculating score")
+            score = score_closed_cards(
+                api, 
+                list(closed_this_week),
+                closed_dates=closed_dates
+            )
+            result.append(paragraph("Score for this week: %d" % score))
         opened_this_week = list([c for c in open_cards if api.get_creation_date(c).date() >= start_of_week])
         result.append(paragraph("Cards opened this week: %d" % len(opened_this_week)))
         result.append("Net closure this week: %d" % (len(closed_this_week) - len(opened_this_week)))
@@ -920,3 +934,88 @@ class TrelloThisWeekNetClosure(ReportService):
                 "error": "Error getting net closure from Trello. Please check your configuration and API key.",
                 "details": str(e)
             }
+
+primary_label = get_config_str("trello_primary_label", "Primary", "Label used in Trello to mark primary tasks")
+secondary_label = get_config_str("trello_secondary_label", "Secondary", "Label used in Trello to mark secondary tasks")
+
+def score_closed_cards(
+        api: TrelloAPI, 
+        closed_cards=None, 
+        closed_dates=None,
+        score_from_date=None,
+        score_to_date=None
+    ) -> int:
+    """
+    Scores closed cards on a Trello board. 
+
+    Based on label and the fact if the card closed the list, score is calculated as follows:
+
+    - If the card has a "Primary" label and is closed, it scores 3 points.
+    - If the card has a "Secondary" label and is closed, it scores 1 point.
+    - If the card is closed but does not have either label, it scores 1 point.
+    - If the card closed the list, it scores 4 points.
+
+    Args:
+        api (TrelloAPI): An instance of the TrelloAPI class to interact with the Trello API.
+        closed_cards (list): A list of closed cards to be scored.
+        closed_dates (dict): A dictionary mapping card IDs to their closed dates.
+        score_from_date (datetime): If provided, only cards closed on or after this date will be scored.
+        score_to_date (datetime): If provided, only cards closed on or before this date will be scored.
+    Returns:
+        int: The total score of closed cards on the board.
+    """
+    logger.info(f"Scoring {len(closed_cards)} closed cards.")
+    if closed_cards is None:
+        closed_cards = api.get_closed_cards()
+    if closed_dates is None:
+        closed_dates = {
+            card['id']: card.get("dateLastActivity", datetime.datetime.min) for card in closed_cards
+        }
+    total_score = 0
+    already_closed_list_ids = set()
+    closed_lists = api.get_closed_lists()
+    list_closure_cards = {}
+    for closed_list in closed_lists:
+        logger.debug(f"Processing closed list '{closed_list.get('name')}' (ID: {closed_list.get('id')})")
+        list_cards = [
+            card for card in closed_cards 
+            if card.get('idList') == closed_list['id']
+        ]
+        if list_cards:
+            list_closure_cards[closed_list['id']] = max(
+                list_cards,
+                key=lambda c: closed_dates.get(c['id'], datetime.datetime.min)
+            )
+        else:
+            logger.debug(f"No closed cards found for list '{closed_list.get('name')}' (ID: {closed_list.get('id')})")
+    for card in closed_cards:
+        if score_from_date or score_to_date:
+            closed_date = closed_dates.get(card['id'])
+            if closed_date is None:
+                logger.warning(f"Card '{card.get('name')}' does not have a closed date. Skipping scoring.")
+                continue
+            if score_from_date and closed_date <= score_from_date:
+                logger.debug(f"Card '{card.get('name')}' closed on {closed_date}, which is before the score_from_date {score_from_date}. Skipping scoring.")
+                continue
+            if score_to_date and closed_date >= score_to_date:
+                logger.debug(f"Card '{card.get('name')}' closed on {closed_date}, which is after the score_to_date {score_to_date}. Skipping scoring.")
+                continue
+        card_score = 0
+        if api.has_label(card, primary_label):
+            card_score = 3
+        elif api.has_label(card, secondary_label):
+            card_score = 1
+        else:
+            card_score = 1
+
+        list_id = card.get('idList')
+        if list_id and list_id not in already_closed_list_ids:
+            if any(closed_list['id'] == list_id for closed_list in closed_lists):
+                # If the card closed the list, it scores 4 points.
+                if list_closure_cards.get(list_id, {}).get("id", "") == card['id']:
+                    card_score = 4
+                already_closed_list_ids.add(list_id)
+        logger.debug(f"Card '{card.get('name')}' scored {card_score} points.")
+        total_score += card_score
+    return total_score
+
