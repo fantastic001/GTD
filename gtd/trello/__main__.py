@@ -3,7 +3,8 @@ from gtd.config import get_config_str
 from gtd.trello import TrelloAPI, ai_help,  deliverables_report
 import sys 
 import json
-
+import datetime
+import logging
 
 api = TrelloAPI()
 
@@ -35,6 +36,9 @@ elif sys.argv[1] == "comments":
     for card in cards:
         if api.has_label(card, "Help"):
             for c in api.get_comments(card):
-                print(c)
+                print(f"[{c['date']}] {c['text']}")
 elif sys.argv[1] == "deliverables":
-    print("\n".join(deliverables_report(api, "Default board", api.get_closed_cards()[-10:])))
+    logging.basicConfig(level=logging.DEBUG)
+    week_start = datetime.datetime.now() - datetime.timedelta(days=14)
+    week_start = week_start.date()
+    print("\n".join(deliverables_report(api, "Default board", api.get_open_cards("Nutanix"), week_start)))

@@ -296,10 +296,17 @@ class TrelloAPI:
     @backoff
     def get_comments(self, card):
         """
-        Returns comments from given card.
+        Returns comments from given card as list of dicts with 'text' and 'date' keys.
         """
         try:
-            return [c["data"]["text"] for c in self.api.cards.get(card['id'], actions='commentCard')['actions'] if c['type'] == 'commentCard']
+            comments = []
+            for c in self.api.cards.get(card['id'], actions='commentCard')['actions']:
+                if c['type'] == 'commentCard':
+                    comments.append({
+                        'text': c['data']['text'],
+                        'date': c['date']  # ISO 8601 format: YYYY-MM-DDTHH:MM:SS.fffZ
+                    })
+            return comments
         except KeyError:
             raise ValueError("Key 'comments' not found in card, API probably changed, data: %s" % card)
         except Exception as e:
@@ -432,6 +439,19 @@ MathJax = {
         except Exception as e:
             logger.error("Error getting board name: %s", e)
             raise ValueError("Error getting board name")
+    
+    def is_card_closed(self, card):
+        """
+        Returns True if the given card is closed, False otherwise.
+        """
+        try:
+            return card['closed'] or card.get('dueComplete', False)
+        except KeyError:
+            raise ValueError("Key 'closed' not found in card, API probably changed, data: %s" % card)
+        except Exception as e:
+            logger.error("Error checking if card is closed: %s", e)
+            raise ValueError("Error checking if card is closed")
+
 
 def get_closed_dates(api: TrelloAPI, closed_cards):
     closed_this_week = {}
@@ -441,15 +461,24 @@ def get_closed_dates(api: TrelloAPI, closed_cards):
     return closed_this_week
 
 
-def deliverables_report(api: TrelloAPI, board_name, closed_this_week):
+def deliverables_report(api: TrelloAPI, board_name, cards, week_start):
     """
-    Generates a report of deliverables for this week. Deliverables are defined as cards with attachments added this week or having comments added this week. Comments should have the link to the deliverable in the comment text.
+    Generates a report of deliverables for this week. Deliverables are defined as cards with 
+    attachments added this week or having comments added from week start. Comments with links 
+    and comments without links are included as deliverables if they are from the current week.
+    Both closed and non-closed cards are considered.
+    
+    :param api: TrelloAPI instance
+    :param board_name: Name of the board
+    :param cards: List of cards to process (can be closed, open, or mixed)
+    :param week_start: datetime.date object representing the start of the week
     """
-    logger.info("Generating deliverables report for board %s with %d closed cards this week", board_name, len(closed_this_week))
+    logger.info("Generating deliverables report for board %s with %d cards from week_start %s", board_name, len(cards), week_start)
     result = []
     result.append(section("Deliverables this week for board %s" % board_name))
     deliverables = {}
-    for c in closed_this_week:
+    
+    for c in cards:
         logger.info("Processing card %s", c["name"])
         attachments = api.get_attachments(c)
         comments = api.get_comments(c)
@@ -464,26 +493,49 @@ def deliverables_report(api: TrelloAPI, board_name, closed_this_week):
         title = c["name"]
         if list_name not in deliverables:
             deliverables[list_name] = []
+        
+        # Add attachments as deliverables
         for a in attachments:
             dels.append("%s: %s" % (title, a['url']))
-        for com in comments:
-            urls = re.findall(r'(https?://\S+)', com)
+        
+        # Process comments from this week
+        for com_obj in comments:
+            com_text = com_obj['text']
+            com_date_str = com_obj['date']
+            
+            # Parse comment date
+            try:
+                com_date = datetime.datetime.strptime(com_date_str, "%Y-%m-%dT%H:%M:%S.%fZ").date()
+            except ValueError:
+                logger.warning("Could not parse comment date: %s", com_date_str)
+                continue
+            
+            # Only include comments from this week onwards
+            if com_date < week_start:
+                logger.debug("Skipping comment from %s (before week start %s)", com_date, week_start)
+                continue
+            
+            # Find URLs in comment
+            urls = re.findall(r'(https?://\S+)', com_text)
+            
+            # Include all comments from this week (with or without links)
             if len(urls) > 0:
                 inline_link_re = re.compile(r'\[([^\]]+)\]\((https?://\S+)\)')
-                com = inline_link_re.sub(r'<a href="\2">\1</a>', com)
+                com_text = inline_link_re.sub(r'<a href="\2">\1</a>', com_text)
                 trello_inline_link_re = re.compile(r'\[([^\]]+)\]\((https?://\S+) [^\)]*\)')
-                com = trello_inline_link_re.sub(r'<a href="\2">\1</a>', com)
+                com_text = trello_inline_link_re.sub(r'<a href="\2">\1</a>', com_text)
                 link_re = re.compile(r'([ \t\n])(https?://\S+)')
-                com = link_re.sub(r'\1<a href="\2">\2</a>', com)
+                com_text = link_re.sub(r'\1<a href="\2">\2</a>', com_text)
                 first_link_item_re = re.compile(r'^(https?://\S+)')
-                com = first_link_item_re.sub(r'<a href="\1">\1</a>', com)
-                dels.append("%s: %s" % (title, com))
-            else:
-                logger.debug("No URLs found in comment: %s", com)
-        if len(dels) == 0:
+                com_text = first_link_item_re.sub(r'<a href="\1">\1</a>', com_text)
+            dels.append("%s: %s" % (title, com_text))
+            logger.debug("Added comment from %s as deliverable", com_date)
+        
+        if len(dels) == 0 and api.is_card_closed(c):
             result.append(paragraph(red("Without deliverables %s - please add a comment with a link to the deliverable or attach the deliverable to the card" % ticket(c))))
         else:
             deliverables[list_name] += dels
+    
     for list_name, dels in deliverables.items():
         if len(dels) == 0:
             continue
@@ -661,14 +713,14 @@ def generate_report():
                 result.append(items([ticket(c) for c in closed_cards]))
         else:
             logger.info("Reporting deliverables for closed cards this week")
-            board_to_closed_cards = {}
-            for c in closed_this_week:
+            board_to_cards = {}
+            for c in closed_this_week + open_cards:
                 board_name = api.get_board_name(c)
-                if board_name not in board_to_closed_cards:
-                    board_to_closed_cards[board_name] = []
-                board_to_closed_cards[board_name].append(c)
-            for board_name, closed_cards_in_board in board_to_closed_cards.items():
-                result += deliverables_report(api, board_name, closed_cards_in_board)
+                if board_name not in board_to_cards:
+                    board_to_cards[board_name] = []
+                board_to_cards[board_name].append(c)
+            for board_name, cards_in_board in board_to_cards.items():
+                result += deliverables_report(api, board_name, cards_in_board, start_of_week)
         logger.info("Loading extensions for report")
         result += load_extensions()
         if ai_enabled:
@@ -696,7 +748,9 @@ def ai_help(api: TrelloAPI, cards, ai_help_label):
                 checklist = api.get_checklist(card)
                 checklist = checklist["checkItems"]
                 checklist = [c["name"] for c in checklist if c["state"] == "incomplete"]
-            comments = api.get_comments(card)
+            comment_objs = api.get_comments(card)
+            # Extract just the text from comment objects for compatibility with get_help_with_task
+            comments = [c['text'] for c in comment_objs] if comment_objs else None
 
             attachment_name = f"{project} - {title}"
             api.remove_label(card, ai_help_label)
