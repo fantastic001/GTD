@@ -921,7 +921,8 @@ class TrelloClosedCards(ReportService):
             today = datetime.datetime.now().date()
             api = TrelloAPI()
             closed_cards = api.get_closed_cards()
-            return [{
+            closed_dates = get_closed_dates(api, closed_cards)
+            result =  [{
                 "title": c["name"],
                 "description": c.get("desc", ""),
                 "due_date": utc_to_this_tz(c["due"]) if c["due"] else None,
@@ -929,9 +930,15 @@ class TrelloClosedCards(ReportService):
                 "url": c["shortUrl"],
                 "labels": [l["name"] for l in c["labels"]],
                 "id": c["id"],
-                "closed_date": utc_to_this_tz(c["dateLastActivity"]) if c["dateLastActivity"] else None,
-                "closed_from_today": (today - utc_to_this_tz(c["dateLastActivity"]).date()).days if c["dateLastActivity"] else None,
+                "closed_date": closed_dates.get(c["id"], None),
+                "closed_from_today": (today - closed_dates.get(c["id"], today)).days if closed_dates.get(c["id"], None) is not None else None,
+                "board": api.get_board_name(c),
+                "created_date": api.get_creation_date(c).date() if api.get_creation_date(c) is not None else None,
+                "created_from_today": (today - api.get_creation_date(c).date()).days if api.get_creation_date(c) is not None else None,
+                "has_primary_label": api.has_label(c, primary_label),
+                "has_secondary_label": api.has_label(c, secondary_label),
             } for c in closed_cards]
+            return result
         except Exception as e:
             return {
                 "error": "Error getting closed cards from Trello. Please check your configuration and API key.",
