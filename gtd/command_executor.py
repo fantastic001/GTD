@@ -9,6 +9,8 @@ from gtd.importer import Importer, import_task
 from orgasm.http_rest import http_auth_json_file, http_get, no_http
 from orgasm.http_rest import issue_token, json_save_to_db
 
+import pandas as pd
+
 TOKEN_FILE = get_config_str("token_file", "tokens.json", "Path to the file with tokens")
 
 @pluggable
@@ -419,7 +421,7 @@ class ServicesExecutor:
     
     @http_auth_json_file(TOKEN_FILE)
     @http_get
-    def service(self, name: str):
+    def service(self, name: str, *, print_csv: bool = False):
         """
         Returns a service by name.
         If service is not found, raises an exception.
@@ -427,4 +429,8 @@ class ServicesExecutor:
         services = get_classes_inheriting(ReportService)
         for service in services:
             if service.__name__ == name:
+                if print_csv:
+                    data = service().provide()
+                    df = pd.DataFrame(data)
+                    return df.to_csv(index=False)
                 return service().provide()
