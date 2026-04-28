@@ -585,33 +585,41 @@ def generate_report():
             result.append(section(mylist, level=1))
             result.append(items([ticket(c) for c in cards]))
 
-        result.append(section("Tickets this week without checklist"))
-        for mylist, cards in card_to_list.items():
-            cards = list([c for c in cards if NotCheckField("idChecklists")(c)])
-            if len(cards) == 0:
-                continue
-            result.append(section(mylist, level=1))
-            logger.info("Getting action points for cards in list %s without checklists, number of cards: %d", mylist, len(cards))
-            apikey = load_credentials()
-            for c in cards:
-                result.append(paragraph(ticket(c)))
-                task_description = "" 
-                task_description += "Title: %s\n" % c["name"]
-                task_description += "Description: %s\n" % c["desc"]
-                task_description += "Project: %s\n" % mylist
-                task_description += "Context: %s\n" % get_context_for_project(mylist)
-                task_description += "Action points should be doable in 30 minutes each.\n"
-                task_description += "Please provide a list of at most 7 action points.\n"
-                logger.debug("Getting action points for card %s with description: %s", c["name"], task_description)
-                suggestions = get_action_points(task_description, apikey)
-                
-                if len(suggestions) > 0:
-                    result.append(items([s for s in suggestions]))
-                    checklist = api.add_checklist(c["id"], "Checklist")
-                    for s in suggestions:
-                        api.add_checklist_item(checklist["id"], s)
-                else:
-                    result.append(paragraph("No suggestions found"))
+        due_soon = list([c for c in open_cards if CheckField("due")(c) and not CheckField("idChecklists")(c) and (utc_to_this_tz(c["due"]) - datetime.datetime.now()).days <= 7])
+        due_soon = sorted(due_soon, key=lambda c: utc_to_this_tz(c["due"]))
+        if len(due_soon) > 0:
+            logger.info("Discovered %d tickets due in the next 7 days without checklists, adding to report", len(due_soon))
+            result.append(section("Tickets due in the next 7 days"))
+            result.append(items([ticket(c) + " (due %s)" % utc_to_this_tz(
+                c["due"]).strftime("%Y-%m-%d") for c in due_soon]))
+        if get_config_bool("report_this_week_without_checklist", False, "Whether to report tickets for this week without checklist and generate action points for them"):
+            result.append(section("Tickets this week without checklist"))
+            for mylist, cards in card_to_list.items():
+                cards = list([c for c in cards if NotCheckField("idChecklists")(c)])
+                if len(cards) == 0:
+                    continue
+                result.append(section(mylist, level=1))
+                logger.info("Getting action points for cards in list %s without checklists, number of cards: %d", mylist, len(cards))
+                apikey = load_credentials()
+                for c in cards:
+                    result.append(paragraph(ticket(c)))
+                    task_description = "" 
+                    task_description += "Title: %s\n" % c["name"]
+                    task_description += "Description: %s\n" % c["desc"]
+                    task_description += "Project: %s\n" % mylist
+                    task_description += "Context: %s\n" % get_context_for_project(mylist)
+                    task_description += "Action points should be doable in 30 minutes each.\n"
+                    task_description += "Please provide a list of at most 7 action points.\n"
+                    logger.debug("Getting action points for card %s with description: %s", c["name"], task_description)
+                    suggestions = get_action_points(task_description, apikey)
+                    
+                    if len(suggestions) > 0:
+                        result.append(items([s for s in suggestions]))
+                        checklist = api.add_checklist(c["id"], "Checklist")
+                        for s in suggestions:
+                            api.add_checklist_item(checklist["id"], s)
+                    else:
+                        result.append(paragraph("No suggestions found"))
         logger.info("Getting closed cards")
         closed_cards = api.get_closed_cards()
         number_closed_cards = len(closed_cards)
