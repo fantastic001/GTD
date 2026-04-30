@@ -804,6 +804,19 @@ class TrelloImporter(Importer):
             logger.info("Project %s not found, creating it", project)
             self.api.add_list(project, board_name=context)
         list_id = next(l for l in self.api.get_lists(context) if l["name"].strip() == project)["id"]
+
+        # Due date can be specified in title as [yyyy-mm-dd]. If due date is 
+        # not specified, it will be None
+        due_date_regex = re.compile(r"\[(\d{4}-\d{2}-\d{2})\]")
+        due_date_match = due_date_regex.search(title)
+        if due_date is None and due_date_match:
+            due_date_str = due_date_match.group(1)
+            try:
+                due_date = datetime.datetime.strptime(due_date_str, "%Y-%m-%d").date()
+                title = due_date_regex.sub("", title).strip()
+            except ValueError:
+                logger.warning("Could not parse due date from title: %s", due_date_str)
+
         card = self.api.add_card(title, list_id, desc=description, due=due_date)
         if checklists is not None and len(checklists.keys()) > 0:
             for checklist_name, checklist_items in checklists.items():
