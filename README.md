@@ -7,6 +7,8 @@
   - [Adding tasks with description and checklists](#adding-tasks-with-description-and-checklists)
 - [Configuration reference](#configuration-reference)
 - [Writing extensions for GTD](#writing-extensions-for-gtd)
+- [Guides](#guides)
+  - [Analyzing your productivity patterns](#analyzing-your-productivity-patterns)
 
 
 
@@ -221,3 +223,17 @@ def add_extensions(report: Report):
 ```
 
 That's it! Now you will see new content generated from your extension in your report.
+
+# Guides
+
+## Analyzing your productivity patterns
+
+Get closed tasks first:
+
+        gtd service --name TrelloClosedCards --print-csv > closed_cards.csv
+
+Then, you can analyze them in Excel or Jupyter notebook to find patterns in your productivity. For instance, you can find out on which days of week you are most productive, how many tasks you close on average per day, etc.
+
+There is command to give you some insights about your productivity:
+
+        gtd analyze --path closed_cards.csv
