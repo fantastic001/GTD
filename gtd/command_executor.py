@@ -434,3 +434,34 @@ class ServicesExecutor:
                     df = pd.DataFrame(data)
                     return df.to_csv(index=False)
                 return service().provide()
+    
+    @no_http
+    def analyze(self, path: str):
+        """
+        Performa deep analysis of the tasks closed.
+
+        :param path: Path to the csv file which is output of the service command for getting closed tasks.
+        """
+        import matplotlib.pyplot as plt
+        df = pd.read_csv(path)
+        print("Total closed tasks: %d" % df.shape[0])
+        print("Closed tasks by project:")
+        print(df["project"].value_counts())
+        print("Closed tasks by weekday:")
+        df["weekday"] = pd.to_datetime(df["closed_date"]).dt.day_name()
+        print(df["weekday"].value_counts())
+
+        df["week"] = pd.to_datetime(df["closed_date"]).dt.isocalendar().week
+        # Plot closed tasks by week
+        plt.figure(figsize=(12, 6))
+        df.groupby("week").size().plot(kind="bar", color="blue", alpha=0.7)
+        # Mark ones below mean with red color
+        mean_closed_tasks = df.groupby("week").size().mean()
+        for i, count in enumerate(df.groupby("week").size()):
+            if count < mean_closed_tasks:
+                plt.bar(i, count, color="red", alpha=0.7)
+        plt.title("Closed Tasks by Week")
+        plt.xlabel("Week")
+        plt.ylabel("Number of Closed Tasks")
+        plt.axhline(mean_closed_tasks, color="green", linestyle="--", label=f"Mean = {mean_closed_tasks:.2f}")
+        plt.show()
