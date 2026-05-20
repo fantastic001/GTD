@@ -3,8 +3,15 @@
 - [Configuration](#configuration)
 - [Configure to work with Trello](#configure-to-work-with-trello)
 - [Creating tasks](#creating-tasks)
-  - [Creating tasks with only title](#creating-tasks-with-only-title)
-  - [Adding tasks with description and checklists](#adding-tasks-with-description-and-checklists)
+  - [Command reference: gtd upload ](#command-reference-gtd-upload-)
+  - [Examples](#examples)
+    - [1) One task per line](#1-one-task-per-line)
+    - [2) Multiline tasks (title + description)](#2-multiline-tasks-title--description)
+    - [3) Tasks with checklist items](#3-tasks-with-checklist-items)
+    - [4) Multiple named checklists per task](#4-multiple-named-checklists-per-task)
+    - [5) Use stdin (no input file)](#5-use-stdin-no-input-file)
+    - [6) Trello board/list targeting via context + parent](#6-trello-boardlist-targeting-via-context--parent)
+  - [How upload integrates with Trello](#how-upload-integrates-with-trello)
 - [Configuration reference](#configuration-reference)
 - [Writing extensions for GTD](#writing-extensions-for-gtd)
 - [Guides](#guides)
@@ -106,47 +113,136 @@ Every task can have subtasks in terms of check items or acceptance criteria. The
 
 # Creating tasks 
 
-## Creating tasks with only title
+## Command reference: gtd upload <OPTIONS>
 
-Just put them line-by-line into fucking file, you motherfucker
+Use this command to batch-create tasks from stdin or a file:
 
-        vim my_fucking_tasks.txt 
-
-```
-fuck wife
-fuck boss
-fuck his wife
+```shell
+gtd upload <OPTIONS>
 ```
 
-Ok, we have 3 tasks, lets add them into project `Regular fucking`
+Current options (from CLI help):
 
-        gtd upload -i my_fucking_tasks.txt -p "Regular fucking"
-
-That's it! Easy, huh?
-
-## Adding tasks with description and checklists
-
-Maybe you want to describe your tasks better and add some checklist to ensure you actually do something in proper manner. Separate tasks with empty line and add `-c` parameter:
-
-```
-task 1 
-description
-* checkitem 1
-* checkitem 2
-* checkitem 3
-
-task 2
-description
-* checkitem 1
-* checkitem 2
-* checkitem 3
+```text
+-i, --input INPUT
+-m, --multiline
+-c, --checklists
+--importer IMPORTER
+-p, --parent PARENT
+--multi-checklist
+--context CONTEXT
 ```
 
-and now add to trello or whateveer bullshit you use:
+Behavior:
 
-        gtd upload -i mytasks -c -p "My project"
+- `--input` reads tasks from file. If omitted, `gtd upload` reads from stdin.
+- default mode (no `--multiline`, no `--checklists`): each non-empty line is one task title.
+- `--multiline`: first line of a block is title, remaining lines are description; tasks are separated by an empty line.
+- `--checklists`: similar block parsing, but lines starting with `*` become checklist items.
+- `--multi-checklist`: only with `--checklists`; allows named checklists using a line ending with `:` (for example `Acceptance criteria:`), then `* item` lines go into that checklist.
+- `--importer`: choose importer explicitly. If omitted, GTD auto-selects importer only when exactly one importer is available.
+- `--parent`: target project/list for created tasks. If it does not exist, GTD creates it.
+- `--context`: importer-specific context. For Trello this is the board name.
 
-And you will see your fucking tasks in your fucking board. 
+When `--checklists` is enabled, command internally uses checklist mode (you do not need `--multiline` together with it).
+
+Duplicate protection is enabled: if a task already exists, it is skipped instead of creating a duplicate.
+
+## Examples
+
+### 1) One task per line
+
+```text
+buy groceries
+prepare sprint demo
+review notes
+```
+
+```shell
+gtd upload -i tasks.txt -p "This Week"
+```
+
+### 2) Multiline tasks (title + description)
+
+```text
+Prepare monthly report
+Collect data from analytics and Jira
+Draft summary for stakeholders
+
+Refactor importer layer
+Split Trello-specific logic from generic import flow
+```
+
+```shell
+gtd upload -i tasks_multiline.txt --multiline -p "Backlog"
+```
+
+### 3) Tasks with checklist items
+
+```text
+Release v1.2.0
+Publish release notes
+* Update changelog
+* Tag release
+* Announce in Slack
+
+Plan Q3 roadmap
+Draft goals
+* Gather input from team
+* Estimate initiatives
+```
+
+```shell
+gtd upload -i tasks_checklists.txt --checklists -p "Planning"
+```
+
+### 4) Multiple named checklists per task
+
+```text
+Launch feature flag
+Rollout with safeguards
+Acceptance:
+* tests pass in CI
+* no errors in logs
+Communication:
+* update docs
+* notify support
+```
+
+```shell
+gtd upload -i tasks_multi_checklist.txt --checklists --multi-checklist -p "Releases"
+```
+
+### 5) Use stdin (no input file)
+
+```shell
+cat tasks.txt | gtd upload -p "Inbox"
+```
+
+### 6) Trello board/list targeting via context + parent
+
+```shell
+gtd upload -i tasks.txt --context "Backlog" -p "This Week"
+```
+
+This uploads cards to Trello board `Backlog`, list `This Week`.
+
+## How upload integrates with Trello
+
+With Trello plugin enabled (`gtd.trello`):
+
+- `--context` maps to Trello board.
+- `--parent` maps to Trello list.
+- if list does not exist, GTD creates the list automatically.
+- each imported task becomes one Trello card.
+- description text is sent as card description.
+- checklist data is created as Trello checklists/check items.
+- uniqueness check compares open cards by title in the target list (same title in same list is treated as existing).
+
+Trello-specific extra behavior:
+
+- if title contains a date in format `[YYYY-MM-DD]`, importer extracts it and sets card due date.
+  Example title: `Finish draft [2026-05-30]`
 
 # Configuration reference
 
