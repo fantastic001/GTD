@@ -1,6 +1,8 @@
 
+from abc import abstractclassmethod, abstractmethod
 from pprint import pprint
 import re
+from typing import Any
 import trello 
 import os
 import json  
@@ -452,6 +454,68 @@ MathJax = {
             logger.error("Error checking if card is closed: %s", e)
             raise ValueError("Error checking if card is closed")
 
+class CardFilter:
+    @abstractmethod
+    def filter(self, card) -> bool:
+        pass
+
+    def __call__(self, card) -> bool:
+        return self.filter(card)
+
+    def __not__(self):
+        return Not(self)
+    
+    def __and__(self, other):
+        return And(self, other)
+    
+    def __or__(self, other):
+        return Or(self, other)
+class HasLabel(CardFilter):
+    def __init__(self, label_name):
+        self.label_name = label_name
+
+    def filter(self, card) -> bool:
+        return any(l['name'] == self.label_name for l in card['labels'])
+
+class HasChecklist(CardFilter):
+    def filter(self, card) -> bool:
+        return CheckField("idChecklists")(card)
+class DueIn(CardFilter):
+    def __init__(self, days):
+        self.days = days
+
+    def filter(self, card) -> bool:
+        if "due" not in card or card["due"] is None:
+            return False
+        due_date = utc_to_this_tz(card["due"])
+        if due_date is None:
+            return False
+        return (due_date - datetime.datetime.now()).days <= self.days
+
+class Not(CardFilter):
+    def __init__(self, filter: CardFilter):
+        self._f = filter
+
+    def filter(self, card) -> bool:
+        return not self._f.filter(card)
+
+class And(CardFilter):
+    def __init__(self, *filters):
+        self.filters = filters
+
+    def filter(self, card) -> bool:
+        return all(f.filter(card) for f in self.filters)
+
+class Or(CardFilter):
+    def __init__(self, *filters):
+        self.filters = filters
+
+    def filter(self, card) -> bool:
+        return any(f.filter(card) for f in self.filters)
+
+class All(CardFilter):
+    def filter(self, card) -> bool:
+        return True
 
 def get_closed_dates(api: TrelloAPI, closed_cards):
     closed_this_week = {}
@@ -460,6 +524,11 @@ def get_closed_dates(api: TrelloAPI, closed_cards):
         closed_this_week[c['id']] = closure_date
     return closed_this_week
 
+def task_section(title, cards, filter: CardFilter = All()):
+    filtered_cards = [c for c in cards if filter.filter(c)]
+    if len(filtered_cards) == 0:
+        return []
+    return [section(title), items([ticket(c) for c in filtered_cards])]
 
 def deliverables_report(api: TrelloAPI, board_name, cards, week_start):
     """
@@ -565,7 +634,7 @@ def generate_report():
         logger.info("Getting open cards")
         open_cards = api.get_open_cards()
         logger.info("Getting cards for this week")
-        this_week = [c for c in open_cards if this_week_label in [l["name"] for l in c["labels"]]]
+        this_week = list([c for c in open_cards if api.has_label(c, this_week_label)])
 
         card_to_list = {}
         for c in this_week:
@@ -592,6 +661,7 @@ def generate_report():
             result.append(section("Tickets due in the next 7 days"))
             result.append(items([ticket(c) + " (due %s)" % utc_to_this_tz(
                 c["due"]).strftime("%Y-%m-%d") for c in due_soon]))
+        result.extend(task_section("Tickets due in 14 days without label for this week", open_cards, filter=DueIn(14) & Not(HasLabel(this_week_label))))
         if get_config_bool("report_this_week_without_checklist", False, "Whether to report tickets for this week without checklist and generate action points for them"):
             result.append(section("Tickets this week without checklist"))
             for mylist, cards in card_to_list.items():
