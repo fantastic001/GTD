@@ -12,6 +12,10 @@
     - [5) Use stdin (no input file)](#5-use-stdin-no-input-file)
     - [6) Trello board/list targeting via context + parent](#6-trello-boardlist-targeting-via-context--parent)
   - [How upload integrates with Trello](#how-upload-integrates-with-trello)
+  - [Troubleshooting upload](#troubleshooting-upload)
+- [Services](#services)
+  - [Command reference: gtd service SERVICENAME](#command-reference-gtd-service-servicename)
+  - [Export closed Trello tasks to CSV](#export-closed-trello-tasks-to-csv)
 - [Configuration reference](#configuration-reference)
 - [Writing extensions for GTD](#writing-extensions-for-gtd)
 - [Guides](#guides)
@@ -244,6 +248,107 @@ Trello-specific extra behavior:
 - if title contains a date in format `[YYYY-MM-DD]`, importer extracts it and sets card due date.
   Example title: `Finish draft [2026-05-30]`
 
+## Troubleshooting upload
+
+- Problem: `No importer found` or upload fails before creating tasks.
+        Fix: enable at least one importer plugin (for Trello: `gtd.trello`) or pass `--importer` explicitly.
+
+- Problem: upload fails because multiple importers are available.
+        Fix: select importer with `--importer <name>`.
+
+- Problem: Trello board not found when using `--context`.
+        Fix: ensure `--context` exactly matches one of your available Trello boards.
+
+- Problem: wrong list/project receives tasks.
+        Fix: pass `-p/--parent` explicitly. If list does not exist, GTD creates it.
+
+- Problem: no `--parent` and upload fails unexpectedly.
+        Cause: upload defaults to first available list/project. If the board has no lists, there is no default parent.
+        Fix: create at least one list first, or pass `--parent` so GTD can create it.
+
+- Problem: tasks are skipped as duplicates.
+        Cause: upload uses unique mode. For Trello, duplicates are checked by open card title in target list.
+        Fix: change title, choose another list, or close/archive the existing card.
+
+- Problem: named checklist sections are ignored.
+        Fix: use `--multi-checklist` and make section headers end with `:`.
+
+- Problem: checklist lines become description text.
+        Fix: checklist items must start with `*`.
+
+- Problem: command appears to hang.
+        Cause: without `--input`, upload reads from stdin.
+        Fix: pass `--input <file>`, or finish stdin input with Ctrl+D.
+
+- Problem: cannot read input file.
+        Fix: verify the `--input` path exists and is readable.
+
+# Services
+
+Use services to fetch structured report data from plugins.
+
+## Command reference: gtd service SERVICENAME
+
+Conceptually, you select a service by name:
+
+```shell
+gtd service SERVICENAME
+```
+
+CSV output is enabled with `-p` / `--print-csv`:
+
+```shell
+gtd service SERVICENAME --print-csv
+```
+
+List available services:
+
+```shell
+gtd services
+```
+
+## Export closed Trello tasks to CSV
+
+This is currently available via Trello service `TrelloClosedCards`.
+
+1. Ensure Trello plugin is enabled in config (`gtd.trello`) and credentials are configured.
+2. Verify service exists:
+
+```shell
+gtd services
+```
+
+3. Export CSV:
+
+```shell
+gtd service TrelloClosedCards --print-csv > closed_cards.csv
+```
+
+4. Optional quick check:
+
+```shell
+head -n 5 closed_cards.csv
+```
+
+`TrelloClosedCards` includes fields such as:
+
+- `title`
+- `description`
+- `due_date`
+- `project`
+- `url`
+- `labels`
+- `id`
+- `closed_date`
+- `closed_from_today`
+- `board`
+- `created_date`
+- `created_from_today`
+- `has_primary_label`
+- `has_secondary_label`
+
+If Trello config/API fails, service returns an error payload instead of card rows.
+
 # Configuration reference
 
 | param                           | type   | default                                                                                                                                                                                                                                                                      | doc                                                                     |
@@ -326,7 +431,7 @@ That's it! Now you will see new content generated from your extension in your re
 
 Get closed tasks first:
 
-        gtd service --name TrelloClosedCards --print-csv > closed_cards.csv
+        gtd service TrelloClosedCards --print-csv > closed_cards.csv
 
 Then, you can analyze them in Excel or Jupyter notebook to find patterns in your productivity. For instance, you can find out on which days of week you are most productive, how many tasks you close on average per day, etc.
 
