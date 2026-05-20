@@ -462,7 +462,7 @@ class CardFilter:
     def __call__(self, card) -> bool:
         return self.filter(card)
 
-    def __not__(self):
+    def __invert__(self):
         return Not(self)
     
     def __and__(self, other):
@@ -516,6 +516,23 @@ class Or(CardFilter):
 class All(CardFilter):
     def filter(self, card) -> bool:
         return True
+
+class HasUncheckedItems(CardFilter):
+
+    def __init__(self, api: TrelloAPI):
+        self.api = api
+
+    def filter(self, card) -> bool:
+        if "idChecklists" not in card or len(card["idChecklists"]) == 0:
+            return False
+        checklist_id = card["idChecklists"][0]
+        checklist = self.api.get_checklist(card)
+        if checklist is None:
+            return False
+        for item in checklist["checkItems"]:
+            if item["state"] == "incomplete":
+                return True
+        return False
 
 def get_closed_dates(api: TrelloAPI, closed_cards):
     closed_this_week = {}
@@ -658,9 +675,7 @@ def generate_report():
         due_soon = sorted(due_soon, key=lambda c: utc_to_this_tz(c["due"]))
         if len(due_soon) > 0:
             logger.info("Discovered %d tickets due in the next 7 days without checklists, adding to report", len(due_soon))
-            result.append(section("Tickets due in the next 7 days"))
-            result.append(items([ticket(c) + " (due %s)" % utc_to_this_tz(
-                c["due"]).strftime("%Y-%m-%d") for c in due_soon]))
+            result.extend(task_section("Tickets due in 7 days without checklists or without unchecked items", due_soon, filter=Not(HasChecklist() & HasUncheckedItems(api))))
         result.extend(task_section("Tickets due in 14 days without label for this week", open_cards, filter=DueIn(14) & Not(HasLabel(this_week_label))))
         if get_config_bool("report_this_week_without_checklist", False, "Whether to report tickets for this week without checklist and generate action points for them"):
             result.append(section("Tickets this week without checklist"))
