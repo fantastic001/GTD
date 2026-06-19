@@ -421,7 +421,7 @@ class ServicesExecutor:
     
     @http_auth_json_file(TOKEN_FILE)
     @http_get
-    def service(self, name: str, *, print_csv: bool = False):
+    def service(self, name: str, *, format: str = ""):
         """
         Returns a service by name.
         If service is not found, raises an exception.
@@ -429,10 +429,18 @@ class ServicesExecutor:
         services = get_classes_inheriting(ReportService)
         for service in services:
             if service.__name__ == name:
-                if print_csv:
+                formats = {
+                    "csv": "to_csv",
+                    "json": "to_json",
+                    "html": "to_html",
+                }
+                if format != "":
                     data = service().provide()
                     df = pd.DataFrame(data)
-                    return df.to_csv(index=False)
+                    if format in formats:
+                        return getattr(df, formats[format])(index=False)
+                    else:
+                        raise Exception("Format %s not supported. Supported formats: %s" % (format, ", ".join(formats.keys())))
                 return service().provide()
     
     @no_http

@@ -295,10 +295,10 @@ Conceptually, you select a service by name:
 gtd service SERVICENAME
 ```
 
-CSV output is enabled with `-p` / `--print-csv`:
+CSV output is enabled with `-f csv` / `--format csv`:
 
 ```shell
-gtd service SERVICENAME --print-csv
+gtd service SERVICENAME --format csv
 ```
 
 List available services:
@@ -321,7 +321,7 @@ gtd services
 3. Export CSV:
 
 ```shell
-gtd service TrelloClosedCards --print-csv > closed_cards.csv
+gtd service TrelloClosedCards --format csv > closed_cards.csv
 ```
 
 4. Optional quick check:
@@ -431,7 +431,7 @@ That's it! Now you will see new content generated from your extension in your re
 
 Get closed tasks first:
 
-        gtd service TrelloClosedCards --print-csv > closed_cards.csv
+        gtd service TrelloClosedCards --format csv > closed_cards.csv
 
 Then, you can analyze them in Excel or Jupyter notebook to find patterns in your productivity. For instance, you can find out on which days of week you are most productive, how many tasks you close on average per day, etc.
 
