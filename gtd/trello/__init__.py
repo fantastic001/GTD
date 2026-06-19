@@ -534,6 +534,23 @@ class HasUncheckedItems(CardFilter):
                 return True
         return False
 
+class HasCheckedItems(CardFilter):
+
+    def __init__(self, api: TrelloAPI):
+        self.api = api
+
+    def filter(self, card) -> bool:
+        if "idChecklists" not in card or len(card["idChecklists"]) == 0:
+            return False
+        checklist_id = card["idChecklists"][0]
+        checklist = self.api.get_checklist(card)
+        if checklist is None:
+            return False
+        for item in checklist["checkItems"]:
+            if item["state"] == "complete":
+                return True
+        return False
+
 def get_closed_dates(api: TrelloAPI, closed_cards):
     closed_this_week = {}
     for c in closed_cards:
@@ -1186,3 +1203,71 @@ def score_closed_cards(
         total_score += card_score
     return total_score
 
+class TrelloWeeklyBoard(ReportService):
+    """
+    Provides dashboard of:
+
+    - TODD - tasks this week without checklists 
+    - Ready - tasks this week with checklists but without any checked items
+    - In progress - tasks this week with checklists and at least one checked item which is not completed
+    - Done - tasks this week which are closed.
+
+    Output is a dictionary with keys "tod", "ready", "in_progress", "done" and values card titles in the format: "[Board] List: Card title". The output is suitable for generating a dashboard of tasks for the week.
+    """
+    
+    def provide(self):
+        logger.info("Generating weekly board report for Trello")
+        data = []
+        try:
+            api = TrelloAPI()
+            lists = api.get_lists()
+            open_cards = api.get_open_cards()
+            closed_cards = api.get_closed_cards()
+            this_week = [c for c in open_cards if this_week_label in [l["name"] for l in c["labels"]]]
+            closed_this_week = list([c for c in closed_cards if datetime.datetime.strptime(c["dateLastActivity"], "%Y-%m-%dT%H:%M:%S.%fZ").date() >= (datetime.datetime.now() - datetime.timedelta(days=datetime.datetime.now().weekday())).date()])
+            tod = list([c for c in this_week if not CheckField("idChecklists")(c)])
+            ready = list([c for c in this_week if CheckField("idChecklists")(c) and not HasCheckedItems(api).filter(c)])
+            in_progress = list([c for c in this_week if CheckField("idChecklists")(c) and HasCheckedItems(api).filter(c)])
+            done = closed_this_week
+            card_to_labels = {}
+            card_to_title = {}
+            for c in tod + ready + in_progress + done:
+                list_name = api.get_list_name(c)
+                board_name = api.get_board_name(c)
+                card_to_title[c["id"]] = "[%s] %s: %s" % (board_name, list_name, c["name"])
+                logger.info("Card with title '%s' has labels: %s", card_to_title[c["id"]], [l["name"] for l in c["labels"]])
+                card_to_labels[c["id"]] = [l["name"].upper() for l in c["labels"] if l["name"] not in [this_week_label]]
+            for c in tod:
+                data.append({
+                    "status": "TODO",
+                    "title": card_to_title[c["id"]],
+                    "url": c["shortUrl"],
+                    "labels": " ".join([label for label in card_to_labels[c["id"]]])
+                })
+            for c in ready:
+                data.append({
+                    "status": "Ready",
+                    "title": card_to_title[c["id"]],
+                    "url": c["shortUrl"],
+                    "labels": " ".join([label for label in card_to_labels[c["id"]]])
+                })
+            for c in in_progress:
+                data.append({
+                    "status": "In Progress",
+                    "title": card_to_title[c["id"]],
+                    "url": c["shortUrl"],
+                    "labels": " ".join([label for label in card_to_labels[c["id"]]])
+                })
+            for c in done:
+                data.append({
+                    "status": "Done",
+                    "title": card_to_title[c["id"]],
+                    "url": c["shortUrl"],
+                    "labels": " ".join([label for label in card_to_labels[c["id"]]])
+                })
+            return data
+        except Exception as e:
+            return {
+                "error": "Error generating weekly board report from Trello. Please check your configuration and API key.",
+                "details": str(e)
+            }
