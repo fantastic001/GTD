@@ -582,6 +582,9 @@ def deliverables_report(api: TrelloAPI, board_name, cards, week_start):
     deliverables = {}
     
     for c in cards:
+        if not api.has_label(c, primary_label):
+            logger.debug("Skipping card %s as it does not have the primary label %s", c["name"], primary_label)
+            continue
         logger.info("Processing card %s", c["name"])
         attachments = api.get_attachments(c)
         comments = api.get_comments(c)
