@@ -1,0 +1,1 @@
+from gtd.report.extractor_factory import ReportExtractorFactory

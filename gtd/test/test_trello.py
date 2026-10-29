@@ -137,46 +137,6 @@ class TestTrelloAPI(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-#  generate_report – we only smoke‑test the happy‑path & error handling
-# ---------------------------------------------------------------------------
-
-class TestGenerateReport(unittest.TestCase):
-
-    @patch(f"{mod.__name__}.TrelloAPI")
-    @patch(f"{mod.__name__}.load_extensions", return_value=[])
-    def test_report_contains_statistics_section(self, _ext, MockAPI):
-        """
-        Smoke‑test: if the TrelloAPI returns deterministic data,
-        the generated HTML should contain expected sections.
-        """
-        mock_api = MockAPI.return_value
-        mock_api.get_lists.return_value = [{'name': 'Backlog', 'id': 'L1'}]
-        # Two open cards, none closed yet
-        mock_api.get_open_cards.return_value = [
-            {'name': 'Card‑1', 'labels': [], 'idList': 'L1',
-             'dateLastActivity': "2025-05-08T01:00:00.000Z"},
-            {'name': 'Card‑2', 'labels': [], 'idList': 'L1',
-             'dateLastActivity': "2025-05-08T02:00:00.000Z"},
-        ]
-        mock_api.get_closed_cards.return_value = []
-        mock_api.get_list_name.return_value = 'Backlog'
-
-        html = mod.generate_report()
-
-        self.assertIn("<h1>Trello Report</h1>", html)
-        # because we forced zero closed cards
-        self.assertIn("No cards closed yet", html)
-
-    @patch(f"{mod.__name__}.TrelloAPI", side_effect=ValueError("Boom"))
-    @patch(f"{mod.__name__}.load_extensions", return_value=[])
-    def test_report_gracefully_handles_api_error(self, _ext, _api):
-        html = mod.generate_report()
-        self.assertIn("Boom", html)
-        # Ensure we rendered an HTML error paragraph, not a traceback
-        self.assertIn("ERROR", html)
-
-
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     unittest.main()

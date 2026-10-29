@@ -18,6 +18,7 @@
   - [Export closed Trello tasks to CSV](#export-closed-trello-tasks-to-csv)
 - [Configuration reference](#configuration-reference)
 - [Writing extensions for GTD](#writing-extensions-for-gtd)
+  - [Data extraction plugins](#data-extraction-plugins)
 - [Guides](#guides)
   - [Analyzing your productivity patterns](#analyzing-your-productivity-patterns)
 
@@ -386,6 +387,15 @@ If Trello config/API fails, service returns an error payload instead of card row
 | show_context_distribution       | bool   | False                                                                                                                                                                                                                                                                        | Show context distribution                                               |
 | show_context_distribution_table | bool   | False                                                                                                                                                                                                                                                                        | Show context distribution table                                         |
 | report_deliverables             | bool   | True                                                                                                                                                                                                                                                                         | Whether to report deliverables for closed cards this week               |
+| report_score                    | bool   | False                                                                                                                                                                                                                                                                        | Whether to report score for closed tasks this week                      |
+| report_this_week_without_checklist | bool | False                                                                                                                                                                                                                                                                       | Whether to suggest action points for tasks this week without checklist  |
+| report_show_SECTION             | bool   | True                                                                                                                                                                                                                                                                         | Toggle a report section (see "Report sections" below)                   |
+| report_title                    | str    | GTD Report                                                                                                                                                                                                                                                                   | Title of the generated report                                           |
+| report_due_soon_days            | int    | 7                                                                                                                                                                                                                                                                            | Horizon in days for due tasks without checklist                         |
+| report_due_without_plan_days    | int    | 14                                                                                                                                                                                                                                                                           | Horizon in days for due tasks not planned for this week                 |
+| extraction_max_workers          | int    | 8                                                                                                                                                                                                                                                                            | Number of extractors allowed to run concurrently                        |
+| builtin_extractor_modules       | list   | ['gtd.report']                                                                                                                                                                                                                                                               | Modules providing extractor factories besides configured plugins        |
+| trello_primary_label            | str    | Primary                                                                                                                                                                                                                                                                      | Label used in Trello to mark primary tasks                              |
 
 
 # Writing extensions for GTD
@@ -424,6 +434,163 @@ def add_extensions(report: Report):
 ```
 
 That's it! Now you will see new content generated from your extension in your report.
+
+## Data extraction plugins
+
+`gtd report` is computed by a graph of *extractors*. Data providers (Trello,
+and in the future Jira or others) only extract data; the general report
+module (`gtd.report`) only renders it. The command prints the elements stored
+under the `report` key of the final context.
+
+### Definitions
+
+Let $K$ be the set of context keys and let a *context* be a partial function
+$c : K \rightharpoonup V$. An extractor $e$ is a triple
+$(D_e, O_e, f_e)$ where
+
+* $D_e \subseteq K$ is `dependencies()`, the keys $e$ requires,
+* $O_e \subseteq K$ is `output()`, the keys $e$ adds,
+* $f_e$ is `extract(context)`, which receives $c|_{D_e}$ (only the declared
+  dependencies) and must return a mapping whose key set is exactly $O_e$.
+
+For a set of extractors $E$ and initial context $c_0$ the pipeline builds the
+graph $G = (E, A)$ with
+
+$$A = \{(p, e) \mid \exists k \in D_e : k \in O_p\}.$$
+
+**Pruning to the target.** `gtd report` requests the key set
+$R = \{\texttt{report}\}$. Only the extractors needed to reach $R$ are run:
+$N$ is the least set satisfying
+
+$$N = \{p \in E \mid O_p \cap R \neq \emptyset\} \cup \{p \in E \mid \exists e \in N : O_p \cap D_e \neq \emptyset\},$$
+
+i.e. every producer of a required key, and transitively every producer of a
+dependency of an extractor already in $N$. All other extractors are skipped
+and their dependencies are not checked. If $R = \emptyset$, $N = E$.
+
+Example: with $E = \{\text{lists} \to \texttt{projects},\ \text{report}(\texttt{projects}) \to \texttt{report},\ \text{ai\_help} \to \texttt{ai\_help\_requests}\}$
+and $R = \{\texttt{report}\}$ we get $N = \{\text{report}, \text{lists}\}$;
+`ai_help` is not run. It runs only through `gtd ai_help`, which requests
+$R = \{\texttt{ai\_help\_requests}\}$.
+
+Assumptions checked on $N$ before anything runs:
+
+1. **Satisfiability**: $\forall e \in E,\ \forall k \in D_e:\ k \in \operatorname{dom}(c_0) \lor \exists p \in E : k \in O_p$
+   (otherwise `MissingDependencyError`), and every $k \in R$ is in $\operatorname{dom}(c_0)$ or produced by some extractor.
+2. **Acyclicity**: $G$ is a DAG (otherwise `CyclicDependencyError`).
+3. **No overwrite**: $O_e \cap \operatorname{dom}(c_0) = \emptyset$
+   (otherwise `ConflictingOutputError`).
+
+Consequence: a topological order of $G$ (restricted to $N$) exists, and $e$ starts only after
+every $p$ with $(p, e) \in A$ finished. Extractors with no path between them
+in $G$ run concurrently (thread pool of `extraction_max_workers`).
+
+**Multiple providers.** If $P_k = \{p \in E \mid k \in O_p\}$ has more than
+one element, $c(k)$ is published only once all of $P_k$ finished, as
+$\operatorname{merge}(v_{p_1}, \dots, v_{p_n})$ in registration order, where
+merge is concatenation for lists, disjoint union for dicts and sum for
+numbers (any other type, or mixed types, is a `ConflictingOutputError`).
+
+Example: Trello and Jira both output `open_tasks`:
+$v_{\text{trello}} = [t_1, t_2]$, $v_{\text{jira}} = [t_3]$, hence
+$c(\texttt{open\_tasks}) = [t_1, t_2, t_3]$ and every report section that
+depends on `open_tasks` sees tasks from both providers.
+
+### Inspecting keys from the command line
+
+`gtd key --name K` lists every extractor $p$ with $K \in O_p$ together with
+$D_p$, the keys it depends on:
+
+```
+$ gtd key --name report_section_statistics
+StatisticsSectionExtractor <- open_tasks, closed_tasks, closed_this_week_tasks, now, week_start
+```
+
+`gtd get --name K [--format json]` runs the pipeline with $R = \{K\}$, i.e.
+only the extractors needed for $K$, and prints $c(K)$. With `--format json`
+dataclasses become objects, dates ISO 8601 strings and tuples/sets lists:
+
+```
+$ gtd get --name week_start
+2026-10-26
+$ gtd get --name projects --format json
+```
+
+### General keys
+
+Providers fill the provider-neutral keys from `gtd.context_keys.ContextKey`
+with objects from `gtd.domain`:
+
+| key                       | value                              |
+|:--------------------------|:-----------------------------------|
+| `contexts`                | `list[str]` (e.g. Trello boards)   |
+| `projects`                | `list[Project]` (e.g. Trello lists)|
+| `open_tasks`              | `list[Task]`                       |
+| `closed_tasks`            | `list[Task]` with `closed_on`      |
+| `deliverables`            | `list[Deliverable]`                |
+| `weekly_score`            | `int`                              |
+| `suggested_action_points` | `list[ActionPointSuggestion]`      |
+| `ai_help_requests`        | `list[str]` titles sent to AI help |
+
+`gtd.report` itself provides `now`, `week_start`, `closed_this_week_tasks`,
+one `report_section_*` key per section and finally `report`.
+
+### Report sections
+
+Each section is toggled with `report_show_<name>` (default `true`):
+`this_week_with_checklist`, `due_soon_without_checklist`,
+`due_without_weekly_plan`, `open_tasks_distribution`, `statistics`,
+`extensions`. In addition `report_score`, `report_deliverables` (when
+`false` the closed-tasks section is shown instead) and
+`report_this_week_without_checklist` switch the corresponding sections.
+
+### Writing a provider plugin
+
+A plugin is a package listed in `plugins` whose top-level module exposes a
+concrete `ExtractorFactory` subclass; `load_extractor_factories()` discovers
+it. Every extractor lives in its own file under `<plugin>/extractors/`, and
+the factory reads configuration and passes it to the extractor constructors:
+
+```
+myprovider/
+    __init__.py              # from myprovider.extractor_factory import MyFactory
+    extractor_factory.py
+    extractors/
+        __init__.py
+        open_tasks.py
+```
+
+```python
+from gtd.config import get_config_str
+from gtd.context_keys import ContextKey
+from gtd.extraction import Extractor, ExtractorFactory
+
+
+class MyOpenTasksExtractor(Extractor):
+
+    def __init__(self, url: str) -> None:
+        self._url = url
+
+    def dependencies(self):
+        return []
+
+    def output(self):
+        return [ContextKey.OPEN_TASKS]
+
+    def extract(self, context):
+        return {ContextKey.OPEN_TASKS: fetch_tasks(self._url)}
+
+
+class MyFactory(ExtractorFactory):
+
+    def create_extractors(self):
+        url = get_config_str("myprovider_url", "", "URL of my provider")
+        return [MyOpenTasksExtractor(url)]
+```
+
+See `gtd/trello/extractors/` for a complete provider (e.g.
+`TrelloListExtractor` outputs `projects`, and `TrelloOpenTasksExtractor`
+depends on raw `trello_*` keys to output `open_tasks`).
 
 # Guides
 

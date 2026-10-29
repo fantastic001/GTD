@@ -6,16 +6,15 @@ from gtd.extensions import ReportService
 from gtd.style import * 
 from gtd.config import get_classes_inheriting
 from gtd.importer import Importer, import_task
+from gtd.report.generation import generate_report_elements
+from gtd.ai_help import request_ai_help
+from gtd.extraction.commands import describe_key_producers, extract_key
 from orgasm.http_rest import http_auth_json_file, http_get, no_http
 from orgasm.http_rest import issue_token, json_save_to_db
 
 import pandas as pd
 
 TOKEN_FILE = get_config_str("token_file", "tokens.json", "Path to the file with tokens")
-
-@pluggable
-def generate_report():
-    return None 
 
 @pluggable
 def generate_retro_report(year, week, start=-1):
@@ -54,10 +53,41 @@ class CommandExecutor:
                 return custom_report
 
         else:
-            custom_report = generate_report()
-        if custom_report is not None:
-            return custom_report
-        return ""
+            return "\n".join(generate_report_elements())
+
+    @no_http
+    def ai_help(self):
+        """
+        Asks AI for help with tasks marked with the AI help label (for Trello:
+        trello_ai_help_label, default "Help"), attaches the answer to each
+        task and removes the label. Runs only the extractors needed for this.
+
+        Returns titles of tasks for which help was requested.
+        """
+        return request_ai_help()
+
+    @no_http
+    def key(self, name: str):
+        """
+        Lists all extractors providing the given context key together with
+        the keys each of them depends on.
+
+        Example: gtd key --name open_tasks
+        """
+        return describe_key_producers(name)
+
+    @no_http
+    def get(self, name: str, *, format: str = ""):
+        """
+        Runs only the extractors needed to produce the given context key and
+        returns its value.
+
+        :param name: Context key to extract, e.g. projects or open_tasks.
+        :param format: Output format. Empty for raw values, or json.
+
+        Example: gtd get --name projects --format json
+        """
+        return extract_key(name, format)
 
     @no_http
     def retro(self, week: int, *, year: int = 0, start: int = -1):
@@ -358,6 +388,9 @@ class CommandExecutor:
         Usage: gtd COMMAND [ARGS]
         Commands:
         - report: Generates a report of tasks and other information from plugins in HTML page.
+        - ai_help: Asks AI for help with tasks marked with the AI help label.
+        - key: Lists extractors providing a context key and their dependencies.
+        - get: Runs extraction for a context key and returns its value.
         - projects: Lists all projects available in the specified importer. If no importer is specified, it returns the first one found.
         - create_ticket: Creates a new ticket with the specified parameters.
         - import_csv: Imports a csv file with the specified columns.

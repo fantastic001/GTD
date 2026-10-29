@@ -1,0 +1,26 @@
+class ContextKey:
+    NOW = "now"
+    WEEK_START = "week_start"
+    CONTEXTS = "contexts"
+    PROJECTS = "projects"
+    OPEN_TASKS = "open_tasks"
+    CLOSED_TASKS = "closed_tasks"
+    CLOSED_THIS_WEEK_TASKS = "closed_this_week_tasks"
+    DELIVERABLES = "deliverables"
+    WEEKLY_SCORE = "weekly_score"
+    SUGGESTED_ACTION_POINTS = "suggested_action_points"
+    AI_HELP_REQUESTS = "ai_help_requests"
+    REPORT = "report"
+
+
+class ReportSectionKey:
+    THIS_WEEK_WITH_CHECKLIST = "report_section_this_week_with_checklist"
+    DUE_SOON_WITHOUT_CHECKLIST = "report_section_due_soon_without_checklist"
+    DUE_WITHOUT_WEEKLY_PLAN = "report_section_due_without_weekly_plan"
+    ACTION_POINTS = "report_section_action_points"
+    OPEN_TASKS_DISTRIBUTION = "report_section_open_tasks_distribution"
+    STATISTICS = "report_section_statistics"
+    WEEKLY_SCORE = "report_section_weekly_score"
+    CLOSED_THIS_WEEK = "report_section_closed_this_week"
+    DELIVERABLES = "report_section_deliverables"
+    EXTENSIONS = "report_section_extensions"

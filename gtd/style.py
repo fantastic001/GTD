@@ -1,4 +1,5 @@
 
+import html
 from jira import Issue
 import pandas as pd 
 from typing import Any
@@ -22,6 +23,13 @@ def ticket(ticket: Issue, extended = False) -> str:
             ticket["shortLink"],
             ticket["name"],
         )
+
+def task_reference(task) -> str:
+    return "[<a href='%s'>%s</a>] %s" % (
+        html.escape(task.url, quote=True),
+        html.escape(task.reference),
+        html.escape(task.title),
+    )
 
 def colored(c, text, block=False):
     if not block:
