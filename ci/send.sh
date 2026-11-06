@@ -1,5 +1,14 @@
 #!/bin/bash 
 
+REPORT_FILE="${REPORT_FILE:-report.html}"
+REPORT_SUBJECT="${REPORT_SUBJECT:-GTD report}"
+REPORT_EXTRAS="${REPORT_EXTRAS:-include}"
+
+if [ ! -f "$REPORT_FILE" ]; then
+    echo "Report file $REPORT_FILE not found" >&2
+    exit 1
+fi
+
 if [ -f ~/.muttrc ]; then 
     echo "There is already muttrc file"
 else 
@@ -75,13 +84,19 @@ This email is sent from $(curl https://jsonip.com | jq ".ip")
 
 " 
 
+if [ "$REPORT_EXTRAS" = "skip" ]; then
+    echo "Sending $REPORT_FILE without attachments and Google Drive upload"
+    echo "$content" | mutt -s "$REPORT_SUBJECT" -a "$REPORT_FILE" -- $my_email
+    exit 0
+fi
+
 # do not attach files in attachments if directory is empty
 if [ -z "$(ls $ATTACHMENTS_DIR/)" ]; then
     echo "No attachments found in $ATTACHMENTS_DIR"
-    echo "$content" | mutt -s "GTD report" -a report.html -- $my_email
+    echo "$content" | mutt -s "$REPORT_SUBJECT" -a "$REPORT_FILE" -- $my_email
 else
     echo "Attachments found in $ATTACHMENTS_DIR"
-    echo "$content" | mutt -s "GTD report" -a report.html -a $ATTACHMENTS_DIR/* -- $my_email
+    echo "$content" | mutt -s "$REPORT_SUBJECT" -a "$REPORT_FILE" -a $ATTACHMENTS_DIR/* -- $my_email
 fi
 
 if [ -n "$DRIVE" ]; then
