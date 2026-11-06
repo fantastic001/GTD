@@ -18,17 +18,23 @@ DOCUMENT_TAIL = ["</body>", "</html>"]
 
 class ReportExtractor(Extractor):
 
-    def __init__(self, title: str, section_keys: Sequence[str]) -> None:
+    def __init__(
+        self,
+        title: str,
+        section_keys: Sequence[str],
+        output_key: str = ContextKey.REPORT
+    ) -> None:
         if len(set(section_keys)) != len(section_keys):
             raise ValueError("Duplicate report sections: %s" % section_keys)
         self._title = title
         self._section_keys = list(section_keys)
+        self._output_key = output_key
 
     def dependencies(self) -> List[str]:
         return list(self._section_keys)
 
     def output(self) -> List[str]:
-        return [ContextKey.REPORT]
+        return [self._output_key]
 
     def extract(self, context: Context) -> Context:
         body = [
@@ -38,4 +44,4 @@ class ReportExtractor(Extractor):
         ]
         title = section(html.escape(self._title))
         document = DOCUMENT_HEAD + [title] + body + DOCUMENT_TAIL
-        return {ContextKey.REPORT: document}
+        return {self._output_key: document}

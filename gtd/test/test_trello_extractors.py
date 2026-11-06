@@ -6,6 +6,7 @@ from gtd.context_keys import ContextKey
 from gtd.domain import Project
 from gtd.extraction import ExtractionPipeline
 from gtd.report.extractor_factory import ReportExtractorFactory
+from gtd.report.monthly_extractor_factory import MonthlyReportExtractorFactory
 from gtd.trello.context_keys import TrelloContextKey
 from gtd.trello.extractor_factory import TrelloExtractorFactory
 from gtd.trello.extractors.action_points import TrelloActionPointsExtractor
@@ -122,9 +123,14 @@ class TestRawTrelloExtractors(unittest.TestCase):
         closed_lists = TrelloClosedListExtractor(self.api, self.boards)
         open_cards = TrelloOpenCardsExtractor(self.api, self.boards)
         closed_cards = TrelloClosedCardsExtractor(self.api, self.boards)
+        closed_lists_result = closed_lists.extract({})
         self.assertEqual(
-            closed_lists.extract({})[TrelloContextKey.CLOSED_LISTS],
+            closed_lists_result[TrelloContextKey.CLOSED_LISTS],
             [ARCHIVE]
+        )
+        self.assertEqual(
+            closed_lists_result[ContextKey.CLOSED_PROJECTS],
+            [Project("Archive", "Work")]
         )
         self.assertEqual(
             open_cards.extract({})[TrelloContextKey.OPEN_CARDS][0]["id"],
@@ -290,6 +296,7 @@ class TestTrelloReportPipeline(unittest.TestCase):
             return (
                 TrelloExtractorFactory().create_extractors()
                 + ReportExtractorFactory().create_extractors()
+                + MonthlyReportExtractorFactory().create_extractors()
             )
 
     def test_full_report_from_trello_data(self):
@@ -319,6 +326,27 @@ class TestTrelloReportPipeline(unittest.TestCase):
         self.assertIn("Score for this week: 3", html)
         self.assertIn("Deliverables this week for Work", html)
         self.assertIn("<p>extension</p>", html)
+
+    def test_monthly_report_from_trello_data(self):
+        api = fake_api()
+        api.get_default_boards.return_value = ["Work"]
+        api.get_open_cards.return_value = []
+        api.get_closed_cards.return_value = [
+            card("c1", closed=True, idList="L2"),
+            card("c2", closed=True, idList="L1"),
+        ]
+        api.get_closure_date.return_value = datetime.date(2026, 10, 15)
+        extractors = self.build_extractors(api)
+        context = ExtractionPipeline(extractors, max_workers=4).run(
+            {ContextKey.REPORT_MONTH: datetime.date(2026, 10, 1)},
+            required_keys=[ContextKey.MONTHLY_REPORT]
+        )
+        html = "\n".join(context[ContextKey.MONTHLY_REPORT])
+        self.assertIn("Work: projects in 2026-10", html)
+        self.assertIn("<td>Archive</td>", html)
+        self.assertIn("<td>Done</td>", html)
+        self.assertIn("<td>Backlog</td>", html)
+        self.assertIn("<td>In progress</td>", html)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,11 @@ from gtd.extensions import ReportService
 from gtd.style import * 
 from gtd.config import get_classes_inheriting
 from gtd.importer import Importer, import_task
-from gtd.report.generation import generate_report_elements
+from gtd.report.generation import (
+    generate_monthly_report_elements,
+    generate_report_elements,
+)
+from gtd.report.month import resolve_report_month
 from gtd.ai_help import request_ai_help
 from gtd.extraction.commands import describe_key_producers, extract_key
 from orgasm.http_rest import http_auth_json_file, http_get, no_http
@@ -54,6 +58,32 @@ class CommandExecutor:
 
         else:
             return "\n".join(generate_report_elements())
+
+    @no_http
+    def monthly_report(self, *, month: int = 0, year: int = 0):
+        """
+        Creates HTML report with a section for every context listing projects
+        which were done or in progress in the given month.
+
+        Done: project closed in that month.
+        In progress: project not closed in that month, but at least one of
+        its tasks was done in that month.
+
+        :param month: Month number (1-12). Defaults to current month.
+        :param year: Year, e.g. 2026. Defaults to current year.
+
+        Example: gtd monthly_report --month 10 --year 2026
+        """
+        if month == 0 and year == 0:
+            today = datetime.date.today()
+            month = today.month
+            year = today.year
+        report_month = resolve_report_month(
+            year,
+            month,
+            datetime.date.today()
+        )
+        return "\n".join(generate_monthly_report_elements(report_month))
 
     @no_http
     def ai_help(self):
@@ -388,6 +418,7 @@ class CommandExecutor:
         Usage: gtd COMMAND [ARGS]
         Commands:
         - report: Generates a report of tasks and other information from plugins in HTML page.
+        - monthly_report: Generates per-context tables of projects done or in progress in a month.
         - ai_help: Asks AI for help with tasks marked with the AI help label.
         - key: Lists extractors providing a context key and their dependencies.
         - get: Runs extraction for a context key and returns its value.

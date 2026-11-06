@@ -1,1 +1,2 @@
 from gtd.report.extractor_factory import ReportExtractorFactory
+from gtd.report.monthly_extractor_factory import MonthlyReportExtractorFactory

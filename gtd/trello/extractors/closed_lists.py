@@ -1,5 +1,7 @@
 from typing import List, Sequence
 
+from gtd.context_keys import ContextKey
+from gtd.domain import Project
 from gtd.extraction.extractor import Context, Extractor
 from gtd.trello.context_keys import TrelloContextKey
 
@@ -14,13 +16,20 @@ class TrelloClosedListExtractor(Extractor):
         return []
 
     def output(self) -> List[str]:
-        return [TrelloContextKey.CLOSED_LISTS]
+        return [TrelloContextKey.CLOSED_LISTS, ContextKey.CLOSED_PROJECTS]
 
     def extract(self, context: Context) -> Context:
+        lists_per_board = [
+            (board_name, self._api.get_closed_lists(board_name=board_name))
+            for board_name in self._board_names
+        ]
         return {
             TrelloContextKey.CLOSED_LISTS: [
-                lst
-                for board_name in self._board_names
-                for lst in self._api.get_closed_lists(board_name=board_name)
-            ]
+                lst for _, lists in lists_per_board for lst in lists
+            ],
+            ContextKey.CLOSED_PROJECTS: [
+                Project(name=lst["name"].strip(), context=board_name)
+                for board_name, lists in lists_per_board
+                for lst in lists
+            ],
         }

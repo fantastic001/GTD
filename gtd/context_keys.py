@@ -3,6 +3,9 @@ class ContextKey:
     WEEK_START = "week_start"
     CONTEXTS = "contexts"
     PROJECTS = "projects"
+    CLOSED_PROJECTS = "closed_projects"
+    REPORT_MONTH = "report_month"
+    MONTHLY_PROJECT_PROGRESS = "monthly_project_progress"
     OPEN_TASKS = "open_tasks"
     CLOSED_TASKS = "closed_tasks"
     CLOSED_THIS_WEEK_TASKS = "closed_this_week_tasks"
@@ -11,6 +14,7 @@ class ContextKey:
     SUGGESTED_ACTION_POINTS = "suggested_action_points"
     AI_HELP_REQUESTS = "ai_help_requests"
     REPORT = "report"
+    MONTHLY_REPORT = "monthly_report"
 
 
 class ReportSectionKey:
@@ -24,3 +28,4 @@ class ReportSectionKey:
     CLOSED_THIS_WEEK = "report_section_closed_this_week"
     DELIVERABLES = "report_section_deliverables"
     EXTENSIONS = "report_section_extensions"
+    MONTHLY_PROJECTS = "report_section_monthly_projects"

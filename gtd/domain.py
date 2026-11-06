@@ -1,5 +1,6 @@
 import datetime
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional, Tuple
 
 
@@ -40,3 +41,16 @@ class Deliverable:
 class ActionPointSuggestion:
     task: Task
     action_points: Tuple[str, ...]
+
+
+class ProjectStatus(Enum):
+    DONE = "Done"
+    IN_PROGRESS = "In progress"
+
+
+@dataclass(frozen=True)
+class ProjectProgress:
+    project: Project
+    status: ProjectStatus
+    tasks_done_in_month: int
+    closed_on: Optional[datetime.date]
