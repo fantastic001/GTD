@@ -9,6 +9,9 @@ from gtd.extraction import ExtractionPipeline
 from gtd.report.extractors.monthly_project_progress import (
     MonthlyProjectProgressExtractor,
 )
+from gtd.report.extractors.project_closure_dates import (
+    ProjectClosureDatesExtractor,
+)
 from gtd.report.extractors.monthly_projects_section import (
     MonthlyProjectsSectionExtractor,
 )
@@ -51,16 +54,26 @@ def closed_task(project, closed_on, context="Work") -> Task:
     )
 
 
-def assess(tasks, closed_projects):
-    result = MonthlyProjectProgressExtractor().extract({
+def estimate_closure_dates(tasks, closed_projects):
+    return ProjectClosureDatesExtractor().extract({
         ContextKey.CLOSED_TASKS: tasks,
         ContextKey.CLOSED_PROJECTS: closed_projects,
+    })[ContextKey.PROJECT_CLOSURE_DATES]
+
+
+def assess_list(tasks, closed_projects):
+    return MonthlyProjectProgressExtractor().extract({
+        ContextKey.CLOSED_TASKS: tasks,
+        ContextKey.PROJECT_CLOSURE_DATES: estimate_closure_dates(
+            tasks,
+            closed_projects
+        ),
         ContextKey.REPORT_MONTH: MONTH,
-    })
-    return {
-        p.project.name: p
-        for p in result[ContextKey.MONTHLY_PROJECT_PROGRESS]
-    }
+    })[ContextKey.MONTHLY_PROJECT_PROGRESS]
+
+
+def assess(tasks, closed_projects):
+    return {p.project.name: p for p in assess_list(tasks, closed_projects)}
 
 
 class TestReportMonth(unittest.TestCase):
@@ -145,24 +158,20 @@ class TestMonthlyProjectProgress(unittest.TestCase):
         self.assertEqual(progress, {})
 
     def test_same_project_name_in_other_context_is_distinct(self):
-        progress = MonthlyProjectProgressExtractor().extract({
-            ContextKey.CLOSED_TASKS: [
-                closed_task("Alpha", IN_MONTH, context="Home"),
-            ],
-            ContextKey.CLOSED_PROJECTS: [Project("Alpha", "Work")],
-            ContextKey.REPORT_MONTH: MONTH,
-        })[ContextKey.MONTHLY_PROJECT_PROGRESS]
+        progress = assess_list(
+            [closed_task("Alpha", IN_MONTH, context="Home")],
+            [Project("Alpha", "Work")]
+        )
         self.assertEqual(progress[0].status, ProjectStatus.IN_PROGRESS)
 
     def test_done_projects_listed_first(self):
-        result = MonthlyProjectProgressExtractor().extract({
-            ContextKey.CLOSED_TASKS: [
+        result = assess_list(
+            [
                 closed_task("A open", IN_MONTH),
                 closed_task("Z closed", IN_MONTH),
             ],
-            ContextKey.CLOSED_PROJECTS: [Project("Z closed", "Work")],
-            ContextKey.REPORT_MONTH: MONTH,
-        })[ContextKey.MONTHLY_PROJECT_PROGRESS]
+            [Project("Z closed", "Work")]
+        )
         self.assertEqual(
             [p.project.name for p in result],
             ["Z closed", "A open"]
@@ -172,9 +181,24 @@ class TestMonthlyProjectProgress(unittest.TestCase):
         with self.assertRaises(TypeError):
             MonthlyProjectProgressExtractor().extract({
                 ContextKey.CLOSED_TASKS: [],
-                ContextKey.CLOSED_PROJECTS: [],
+                ContextKey.PROJECT_CLOSURE_DATES: {},
                 ContextKey.REPORT_MONTH: "2026-10",
             })
+
+
+class TestProjectClosureDates(unittest.TestCase):
+
+    def test_only_closed_projects_get_latest_task_date(self):
+        dates = estimate_closure_dates(
+            [
+                closed_task("Alpha", BEFORE_MONTH),
+                closed_task("Alpha", IN_MONTH),
+                closed_task("Open", IN_MONTH),
+                closed_task("Undated", None),
+            ],
+            [Project("Alpha", "Work"), Project("Undated", "Work")]
+        )
+        self.assertEqual(dates, {Project("Alpha", "Work"): IN_MONTH})
 
 
 class TestMonthlyProjectsSection(unittest.TestCase):
@@ -254,7 +278,10 @@ class TestMonthlyReportFactory(unittest.TestCase):
                     ContextKey.CLOSED_PROJECTS: [Project("Alpha", "Work")],
                 }
 
-        extractors = [FakeDataExtractor()] + self.create({})
+        extractors = (
+            [FakeDataExtractor(), ProjectClosureDatesExtractor()]
+            + self.create({})
+        )
         context = ExtractionPipeline(extractors, max_workers=2).run(
             {ContextKey.REPORT_MONTH: MONTH},
             required_keys=[ContextKey.MONTHLY_REPORT]

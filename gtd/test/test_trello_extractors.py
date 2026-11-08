@@ -7,6 +7,7 @@ from gtd.domain import Project
 from gtd.extraction import ExtractionPipeline
 from gtd.report.extractor_factory import ReportExtractorFactory
 from gtd.report.monthly_extractor_factory import MonthlyReportExtractorFactory
+from gtd.report.project_extractor_factory import ProjectDataExtractorFactory
 from gtd.trello.context_keys import TrelloContextKey
 from gtd.trello.extractor_factory import TrelloExtractorFactory
 from gtd.trello.extractors.action_points import TrelloActionPointsExtractor
@@ -297,6 +298,7 @@ class TestTrelloReportPipeline(unittest.TestCase):
                 TrelloExtractorFactory().create_extractors()
                 + ReportExtractorFactory().create_extractors()
                 + MonthlyReportExtractorFactory().create_extractors()
+                + ProjectDataExtractorFactory().create_extractors()
             )
 
     def test_full_report_from_trello_data(self):
@@ -306,7 +308,9 @@ class TestTrelloReportPipeline(unittest.TestCase):
             card("o1", labels=[{"name": "This week"}], idChecklists=["k"]),
             card("o2", labels=[{"name": "Primary"}]),
         ]
-        api.get_closed_cards.return_value = [card("c1", closed=True)]
+        api.get_closed_cards.return_value = [
+            card("c1", closed=True, idList="L2"),
+        ]
         api.get_closure_date.return_value = datetime.date.today()
         api.get_attachments.return_value = []
         api.get_comments.return_value = []
@@ -326,6 +330,11 @@ class TestTrelloReportPipeline(unittest.TestCase):
         self.assertIn("Score for this week: 3", html)
         self.assertIn("Deliverables this week for Work", html)
         self.assertIn("<p>extension</p>", html)
+        self.assertIn("Projects closed this week", html)
+        self.assertIn(
+            "Archive (closed on %s)" % datetime.date.today().isoformat(),
+            html
+        )
 
     def test_monthly_report_from_trello_data(self):
         api = fake_api()

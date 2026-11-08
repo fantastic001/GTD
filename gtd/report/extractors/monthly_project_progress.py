@@ -1,17 +1,14 @@
 import datetime
-from typing import Dict, List, Optional, Sequence, Set
+from typing import Dict, List, Mapping, Optional, Sequence
 
 from gtd.context_keys import ContextKey
 from gtd.domain import Project, ProjectProgress, ProjectStatus, Task
 from gtd.extraction.extractor import Context, Extractor
+from gtd.report.extractors.project_closure_dates import project_of
 from gtd.report.month import is_in_month
 from gtd.report.rendering import group_by
 
 STATUS_ORDER = [ProjectStatus.DONE, ProjectStatus.IN_PROGRESS]
-
-
-def project_of(task: Task) -> Project:
-    return Project(name=task.project, context=task.context)
 
 
 def classify_project(
@@ -31,10 +28,10 @@ class ProjectProgressAssessor:
 
     def __init__(
         self,
-        closed_projects: Set[Project],
+        closure_dates: Mapping[Project, datetime.date],
         month: datetime.date
     ) -> None:
-        self._closed_projects = closed_projects
+        self._closure_dates = closure_dates
         self._month = month
 
     def assess(
@@ -42,7 +39,7 @@ class ProjectProgressAssessor:
         project: Project,
         tasks: Sequence[Task]
     ) -> Optional[ProjectProgress]:
-        closed_on = self._estimate_project_closure(project, tasks)
+        closed_on = self._closure_dates.get(project)
         done_in_month = len([
             task for task in tasks if is_in_month(task.closed_on, self._month)
         ])
@@ -52,23 +49,13 @@ class ProjectProgressAssessor:
         else:
             return None
 
-    def _estimate_project_closure(
-        self,
-        project: Project,
-        tasks: Sequence[Task]
-    ) -> Optional[datetime.date]:
-        if project in self._closed_projects:
-            return max(task.closed_on for task in tasks)
-        else:
-            return None
-
 
 class MonthlyProjectProgressExtractor(Extractor):
 
     def dependencies(self) -> List[str]:
         return [
             ContextKey.CLOSED_TASKS,
-            ContextKey.CLOSED_PROJECTS,
+            ContextKey.PROJECT_CLOSURE_DATES,
             ContextKey.REPORT_MONTH,
         ]
 
@@ -79,7 +66,7 @@ class MonthlyProjectProgressExtractor(Extractor):
         month = context[ContextKey.REPORT_MONTH]
         if isinstance(month, datetime.date):
             assessor = ProjectProgressAssessor(
-                set(context[ContextKey.CLOSED_PROJECTS]),
+                context[ContextKey.PROJECT_CLOSURE_DATES],
                 month
             )
         else:

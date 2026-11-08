@@ -13,6 +13,9 @@ from gtd.report.extractors.action_points_section import (
     ActionPointsSectionExtractor,
 )
 from gtd.report.extractors.calendar import CalendarExtractor
+from gtd.report.extractors.closed_projects_this_week_section import (
+    ClosedProjectsThisWeekSectionExtractor,
+)
 from gtd.report.extractors.closed_this_week import ClosedThisWeekExtractor
 from gtd.report.extractors.closed_this_week_section import (
     ClosedThisWeekSectionExtractor,
@@ -131,6 +134,10 @@ class ReportExtractorFactory(ExtractorFactory):
             ),
             (Inverted(DELIVERABLES_FLAG), ClosedThisWeekSectionExtractor),
             (DELIVERABLES_FLAG, DeliverablesSectionExtractor),
+            (
+                section_flag("closed_projects_this_week"),
+                ClosedProjectsThisWeekSectionExtractor
+            ),
             (
                 section_flag("extensions"),
                 lambda: ExtensionsSectionExtractor(load_extensions)
