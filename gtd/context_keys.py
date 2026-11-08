@@ -27,7 +27,7 @@ class ReportSectionKey:
     STATISTICS = "report_section_statistics"
     WEEKLY_SCORE = "report_section_weekly_score"
     CLOSED_THIS_WEEK = "report_section_closed_this_week"
-    CLOSED_PROJECTS_THIS_WEEK = "report_section_closed_projects_this_week"
+    CLOSED_PROJECTS_THIS_MONTH = "report_section_closed_projects_this_month"
     DELIVERABLES = "report_section_deliverables"
     EXTENSIONS = "report_section_extensions"
     MONTHLY_PROJECTS = "report_section_monthly_projects"

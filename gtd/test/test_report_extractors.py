@@ -10,8 +10,8 @@ from gtd.report.extractors.action_points_section import (
     ActionPointsSectionExtractor,
 )
 from gtd.report.extractors.calendar import CalendarExtractor
-from gtd.report.extractors.closed_projects_this_week_section import (
-    ClosedProjectsThisWeekSectionExtractor,
+from gtd.report.extractors.closed_projects_this_month_section import (
+    ClosedProjectsThisMonthSectionExtractor,
 )
 from gtd.report.extractors.closed_this_week import ClosedThisWeekExtractor
 from gtd.report.extractors.closed_this_week_section import (
@@ -172,35 +172,38 @@ class TestTaskSections(unittest.TestCase):
         self.assertIn("No suggestions found", html)
 
 
-class TestClosedProjectsThisWeekSection(unittest.TestCase):
+class TestClosedProjectsThisMonthSection(unittest.TestCase):
 
     def render_closed_projects(self, closure_dates):
         return render(
-            ClosedProjectsThisWeekSectionExtractor(),
+            ClosedProjectsThisMonthSectionExtractor(),
             {
                 ContextKey.PROJECT_CLOSURE_DATES: closure_dates,
-                ContextKey.WEEK_START: WEEK_START,
+                ContextKey.NOW: NOW,
             }
         )
 
-    def test_lists_projects_closed_since_week_start_per_context(self):
+    def test_lists_projects_closed_in_current_month_per_context(self):
         html = self.render_closed_projects({
             Project("<Alpha>", "Work"): WEEK_START,
-            Project("Garden", "Home"): datetime.date(2026, 10, 28),
-            Project("Old", "Work"): datetime.date(2026, 10, 25),
+            Project("Garden", "Home"): datetime.date(2026, 10, 2),
+            Project("Previous", "Work"): datetime.date(2026, 9, 30),
+            Project("Next", "Work"): datetime.date(2026, 11, 1),
         })
-        self.assertIn("<h1>Projects closed this week</h1>", html)
+        self.assertIn("<h1>Projects closed this month</h1>", html)
         self.assertIn("<h2>Work</h2>", html)
         self.assertIn("<h2>Home</h2>", html)
         self.assertIn("&lt;Alpha&gt; (closed on 2026-10-26)", html)
-        self.assertIn("Garden (closed on 2026-10-28)", html)
-        self.assertNotIn("Old", html)
+        self.assertIn("Garden (closed on 2026-10-02)", html)
+        self.assertLess(html.index("Garden"), html.index("Alpha"))
+        self.assertNotIn("Previous", html)
+        self.assertNotIn("Next", html)
 
     def test_without_closed_projects(self):
         html = self.render_closed_projects({
-            Project("Old", "Work"): datetime.date(2026, 10, 1),
+            Project("Previous", "Work"): datetime.date(2026, 9, 1),
         })
-        self.assertIn("No projects closed this week", html)
+        self.assertIn("No projects closed this month", html)
 
 
 class TestStatisticsSections(unittest.TestCase):
@@ -337,7 +340,7 @@ class TestReportExtractorFactory(unittest.TestCase):
     def test_default_sections(self):
         sections = self.report_dependencies(self.create({}))
         self.assertIn(ReportSectionKey.DELIVERABLES, sections)
-        self.assertIn(ReportSectionKey.CLOSED_PROJECTS_THIS_WEEK, sections)
+        self.assertIn(ReportSectionKey.CLOSED_PROJECTS_THIS_MONTH, sections)
         self.assertNotIn(ReportSectionKey.CLOSED_THIS_WEEK, sections)
         self.assertNotIn(ReportSectionKey.WEEKLY_SCORE, sections)
         self.assertNotIn(ReportSectionKey.ACTION_POINTS, sections)
@@ -348,14 +351,14 @@ class TestReportExtractorFactory(unittest.TestCase):
             "report_score": True,
             "report_this_week_without_checklist": True,
             "report_show_statistics": False,
-            "report_show_closed_projects_this_week": False,
+            "report_show_closed_projects_this_month": False,
         }))
         self.assertIn(ReportSectionKey.CLOSED_THIS_WEEK, sections)
         self.assertIn(ReportSectionKey.WEEKLY_SCORE, sections)
         self.assertIn(ReportSectionKey.ACTION_POINTS, sections)
         self.assertNotIn(ReportSectionKey.DELIVERABLES, sections)
         self.assertNotIn(ReportSectionKey.STATISTICS, sections)
-        self.assertNotIn(ReportSectionKey.CLOSED_PROJECTS_THIS_WEEK, sections)
+        self.assertNotIn(ReportSectionKey.CLOSED_PROJECTS_THIS_MONTH, sections)
 
 
 class TestGenerateReportElements(unittest.TestCase):

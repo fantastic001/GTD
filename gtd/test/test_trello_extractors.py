@@ -330,7 +330,7 @@ class TestTrelloReportPipeline(unittest.TestCase):
         self.assertIn("Score for this week: 3", html)
         self.assertIn("Deliverables this week for Work", html)
         self.assertIn("<p>extension</p>", html)
-        self.assertIn("Projects closed this week", html)
+        self.assertIn("Projects closed this month", html)
         self.assertIn(
             "Archive (closed on %s)" % datetime.date.today().isoformat(),
             html
